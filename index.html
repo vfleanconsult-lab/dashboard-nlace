@@ -1,181 +1,521 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Dashboard NLace</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard NLace</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #334155;
+    }
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    * { box-sizing: border-box; }
 
-<style>
-body { font-family: Arial; padding:20px; }
-.kpi { font-size:22px; margin:10px 0; }
-</style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
 
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 14px;
+    }
+
+    .filter-box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 16px;
+      min-width: 220px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .card-value {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .chart-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+    }
+
+    .chart-sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    .status {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .error {
+      color: #fca5a5;
+    }
+
+    @media (max-width: 800px) {
+      .kpis {
+        grid-template-columns: 1fr;
+      }
+
+      .card-value {
+        font-size: 26px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>Dashboard NLace</h1>
+        <div class="sub">Ingresos y margen operacional por año</div>
+      </div>
 
-<h2>Dashboard NLace</h2>
+      <div class="filter-box">
+        <label for="yearFilter">Año</label>
+        <select id="yearFilter"></select>
+      </div>
+    </div>
 
-<label>Año:</label>
-<select id="yearFilter"></select>
+    <div class="kpis">
+      <div class="card">
+        <div class="card-title">Venta acumulada del año</div>
+        <div class="card-value" id="kpiVentas">-</div>
+      </div>
 
-<div class="kpi" id="ventas"></div>
-<div class="kpi" id="margen"></div>
+      <div class="card">
+        <div class="card-title">Margen operacional</div>
+        <div class="card-value" id="kpiMargen">-</div>
+      </div>
+    </div>
 
-<canvas id="chart"></canvas>
+    <div class="chart-card">
+      <h2 class="chart-title">Ingreso vs Margen por mes</h2>
+      <div class="chart-sub">Barras: Ingreso | Línea: Margen operacional</div>
+      <canvas id="mainChart" height="120"></canvas>
+      <div class="status" id="status">Cargando datos…</div>
+    </div>
+  </div>
 
-<script>
+  <script>
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970";
 
-const CSV_URL = "https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970";
+    // Ajusta estas frases si en tus datos "Retiro directores" viene escrito distinto.
+    const RETIRO_DIRECTORES_MATCH = [
+      "retiro directores",
+      "retiro director",
+      "directores"
+    ];
 
-async function loadData() {
-  const res = await fetch(CSV_URL);
-  const text = await res.text();
+    const MONTH_NAMES = [
+      "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+      "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+    ];
 
-  const rows = text.split("\n").map(r => r.split(","));
+    let rawRows = [];
+    let chartInstance = null;
 
-  const headers = rows[0];
-
-  const data = rows.slice(1).map(r => {
-    let obj = {};
-    headers.forEach((h,i)=> obj[h.trim()] = r[i]);
-    return obj;
-  });
-
-  return data;
-}
-
-function getYears(data){
-  return [...new Set(data.map(d => String(d.Ano_eco).trim()).filter(Boolean))].sort();
-}
-
-function isVenta(d){
-  return d.Cuenta_Cble === "5101-01";
-}
-
-function getMonth(d){
-  if(!d.Mes_economico) return null;
-
-  const raw = String(d.Mes_economico).trim();
-  const match = raw.match(/^(\d{4})-(\d{2})/);
-
-  if(match){
-    return Number(match[2]);
-  }
-
-  return null;
-}
-function calculate(data, year){
-
-  const filtered = data.filter(d => String(d.Ano_eco).trim() == String(year));
-
-  let ventas = 0;
-  let costo = 0;
-  let gasto = 0;
-
-  filtered.forEach(d => {
-
-    const monto = Number(d.monto_bruto || 0);
-
-    if(d.Tipo === "Ingreso" && isVenta(d)) ventas += monto;
-    if(d.Tipo === "Costo") costo += monto;
-    if(d.Tipo === "Gasto") gasto += monto;
-
-  });
-
-  return {
-    ventas,
-    margen: ventas - costo - gasto
-  };
-}
-
-function buildChart(data, year){
-
-  const filtered = data.filter(d => String(d.Ano_eco).trim() == String(year));
-
-  const monthMap = {};
-
-  for(let i=1;i<=12;i++){
-    monthMap[i] = { ventas:0, costo:0, gasto:0 };
-  }
-
-  filtered.forEach(d => {
-
-    const m = getMonth(d);
-    if(!m) return;
-
-    const monto = Number(d.monto_bruto || 0);
-
-    if(d.Tipo==="Ingreso" && isVenta(d)) monthMap[m].ventas += monto;
-    if(d.Tipo==="Costo") monthMap[m].costo += monto;
-    if(d.Tipo==="Gasto") monthMap[m].gasto += monto;
-
-  });
-
-  const labels = [];
-  const ventas = [];
-  const margen = [];
-
-  Object.keys(monthMap).forEach(m => {
-
-    labels.push(m);
-
-    const v = monthMap[m].ventas;
-    const c = monthMap[m].costo;
-    const g = monthMap[m].gasto;
-
-    ventas.push(v);
-    margen.push(v - c - g);
-
-  });
-
-  new Chart(document.getElementById("chart"), {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [
-        { label: 'Ventas', data: ventas },
-        { label: 'Margen', data: margen, type: 'line' }
-      ]
+    function normalizeKey(str) {
+      return String(str || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\./g, "")
+        .replace(/\s+/g, "_");
     }
-  });
-}
 
-loadData().then(data => {
+    function normalizeText(str) {
+      return String(str || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    }
 
-  const years = getYears(data);
+    function parseNumber(value) {
+      if (value === null || value === undefined) return 0;
+      const cleaned = String(value)
+        .trim()
+        .replace(/\$/g, "")
+        .replace(/\./g, "")
+        .replace(/,/g, ".");
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : 0;
+    }
 
-  const select = document.getElementById("yearFilter");
+    function getField(row, candidates) {
+      for (const candidate of candidates) {
+        if (candidate in row) return row[candidate];
+      }
+      return "";
+    }
 
-  years.forEach(y=>{
-    const opt = document.createElement("option");
-    opt.value = y;
-    opt.textContent = y;
-    select.appendChild(opt);
-  });
+    function getYear(row) {
+      const value = getField(row, ["ano_eco", "ano_economico", "año_eco", "ano"]);
+      return String(value || "").trim();
+    }
 
-  function update(){
+    function getMonthRaw(row) {
+      return getField(row, ["mes_economico", "mes_eco"]);
+    }
 
-    const year = select.value;
+    function getMonthNumber(row) {
+      const raw = String(getMonthRaw(row) || "").trim();
 
-    const res = calculate(data, year);
+      if (!raw) return null;
 
-    document.getElementById("ventas").innerText =
-      "Ventas: " + res.ventas.toLocaleString();
+      const direct = Number(raw);
+      if (Number.isInteger(direct) && direct >= 1 && direct <= 12) return direct;
 
-    document.getElementById("margen").innerText =
-      "Margen: " + res.margen.toLocaleString();
+      const dateLike = new Date(raw);
+      if (!Number.isNaN(dateLike.getTime())) {
+        return dateLike.getMonth() + 1;
+      }
 
-    buildChart(data, year);
-  }
+      const match = raw.match(/-(\d{2})-/);
+      if (match) {
+        const month = Number(match[1]);
+        if (month >= 1 && month <= 12) return month;
+      }
 
-  select.onchange = update;
+      return null;
+    }
 
-  update();
+    function getTipo(row) {
+      return normalizeText(getField(row, ["tipo"]));
+    }
 
-});
+    function getMonto(row) {
+      return parseNumber(getField(row, ["monto_bruto", "monto", "monto_total"]));
+    }
 
-</script>
+    function isRetiroDirectores(row) {
+      const valuesToCheck = [
+        getField(row, ["clasificacion_gasto"]),
+        getField(row, ["descripcion_cta", "descripcion_cta_", "descripcion"]),
+        getField(row, ["cuenta_cble"])
+      ]
+        .map(normalizeText)
+        .filter(Boolean);
 
+      return valuesToCheck.some(value =>
+        RETIRO_DIRECTORES_MATCH.some(term => value.includes(term))
+      );
+    }
+
+    function formatCLP(value) {
+      return new Intl.NumberFormat("es-CL", {
+        style: "currency",
+        currency: "CLP",
+        maximumFractionDigits: 0
+      }).format(value || 0);
+    }
+
+    function monthLabel(monthNumber) {
+      if (!monthNumber || monthNumber < 1 || monthNumber > 12) return "Mes";
+      return MONTH_NAMES[monthNumber - 1];
+    }
+
+    function transformRows(rows) {
+      return rows.map(row => {
+        const normalized = {};
+        Object.keys(row).forEach(key => {
+          normalized[normalizeKey(key)] = row[key];
+        });
+        return normalized;
+      });
+    }
+
+    function getAvailableYears(rows) {
+      return [...new Set(rows.map(getYear).filter(Boolean))].sort();
+    }
+
+    function calculateYearMetrics(rows, year) {
+      const filtered = rows.filter(row => getYear(row) === String(year));
+
+      let ingreso = 0;
+      let costo = 0;
+      let gastoOperacional = 0;
+
+      filtered.forEach(row => {
+        const tipo = getTipo(row);
+        const monto = getMonto(row);
+
+        if (tipo === "ingreso") ingreso += monto;
+        if (tipo === "costo") costo += monto;
+        if (tipo === "gasto" && !isRetiroDirectores(row)) gastoOperacional += monto;
+      });
+
+      return {
+        ingreso,
+        costo,
+        gastoOperacional,
+        margen: ingreso - costo - gastoOperacional
+      };
+    }
+
+    function calculateMonthlySeries(rows, year) {
+      const filtered = rows.filter(row => getYear(row) === String(year));
+
+      const monthMap = new Map();
+
+      for (let m = 1; m <= 12; m += 1) {
+        monthMap.set(m, {
+          month: m,
+          ingreso: 0,
+          costo: 0,
+          gastoOperacional: 0,
+          margen: 0
+        });
+      }
+
+      filtered.forEach(row => {
+        const month = getMonthNumber(row);
+        if (!month || !monthMap.has(month)) return;
+
+        const tipo = getTipo(row);
+        const monto = getMonto(row);
+        const bucket = monthMap.get(month);
+
+        if (tipo === "ingreso") bucket.ingreso += monto;
+        if (tipo === "costo") bucket.costo += monto;
+        if (tipo === "gasto" && !isRetiroDirectores(row)) bucket.gastoOperacional += monto;
+      });
+
+      const series = [...monthMap.values()].map(item => ({
+        ...item,
+        margen: item.ingreso - item.costo - item.gastoOperacional
+      }));
+
+      return series;
+    }
+
+    function renderKPIs(metrics) {
+      document.getElementById("kpiVentas").textContent = formatCLP(metrics.ingreso);
+      document.getElementById("kpiMargen").textContent = formatCLP(metrics.margen);
+    }
+
+    function renderChart(series) {
+      const ctx = document.getElementById("mainChart");
+
+      const labels = series.map(item => monthLabel(item.month));
+      const ingresos = series.map(item => item.ingreso);
+      const margenes = series.map(item => item.margen);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: "bar",
+              label: "Ingreso",
+              data: ingresos,
+              yAxisID: "y"
+            },
+            {
+              type: "line",
+              label: "Margen",
+              data: margenes,
+              yAxisID: "y",
+              tension: 0.25
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: "#e5e7eb"
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label(context) {
+                  return `${context.dataset.label}: ${formatCLP(context.parsed.y)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#cbd5e1" },
+              grid: { color: "#334155" }
+            },
+            y: {
+              ticks: {
+                color: "#cbd5e1",
+                callback(value) {
+                  return new Intl.NumberFormat("es-CL", {
+                    notation: "compact",
+                    maximumFractionDigits: 1
+                  }).format(value);
+                }
+              },
+              grid: { color: "#334155" }
+            }
+          }
+        }
+      });
+    }
+
+    function updateDashboard(year) {
+      const metrics = calculateYearMetrics(rawRows, year);
+      const series = calculateMonthlySeries(rawRows, year);
+      renderKPIs(metrics);
+      renderChart(series);
+
+      document.getElementById("status").textContent =
+        `Datos cargados. Año seleccionado: ${year}.`;
+      document.getElementById("status").classList.remove("error");
+    }
+
+    function populateYearFilter(years) {
+      const select = document.getElementById("yearFilter");
+      select.innerHTML = "";
+
+      years.forEach(year => {
+        const option = document.createElement("option");
+        option.value = year;
+        option.textContent = year;
+        select.appendChild(option);
+      });
+
+      const defaultYear = years[years.length - 1];
+      select.value = defaultYear;
+
+      select.addEventListener("change", (e) => {
+        updateDashboard(e.target.value);
+      });
+
+      updateDashboard(defaultYear);
+    }
+
+    async function init() {
+      const status = document.getElementById("status");
+
+      try {
+        const response = await fetch(CSV_URL);
+        if (!response.ok) {
+          throw new Error(`No se pudo leer el CSV. HTTP ${response.status}`);
+        }
+
+        const csvText = await response.text();
+
+        const parsed = Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true
+        });
+
+        if (parsed.errors && parsed.errors.length) {
+          console.warn("Advertencias de parseo CSV:", parsed.errors);
+        }
+
+        rawRows = transformRows(parsed.data);
+
+        const years = getAvailableYears(rawRows);
+        if (!years.length) {
+          throw new Error("No se encontraron años válidos en la columna Ano_eco.");
+        }
+
+        populateYearFilter(years);
+      } catch (error) {
+        console.error(error);
+        status.textContent = `Error al cargar datos: ${error.message}`;
+        status.classList.add("error");
+      }
+    }
+
+    init();
+  </script>
 </body>
-</html>
+	</html>
