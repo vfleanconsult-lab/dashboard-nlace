@@ -170,7 +170,7 @@
 
     <div class="chart-card">
       <h2 class="chart-title">Ingreso vs Margen por mes</h2>
-      <div class="chart-sub">Barras: Ingreso | Línea: Margen operacional</div>
+      <div class="chart-sub">Barras: Ventas | Línea: Margen operacional</div>
       <canvas id="mainChart" height="120"></canvas>
       <div class="status" id="status">Cargando datos…</div>
     </div>
@@ -229,7 +229,11 @@
       }
       return "";
     }
-
+		
+    function isVenta(row){
+  			return normalizeText(getField(row, ["cuenta_cble"])) === "5101-01";
+}
+    
     function getYear(row) {
       const value = getField(row, ["ano_eco", "ano_economico", "año_eco", "ano"]);
       return String(value || "").trim();
@@ -240,26 +244,18 @@
     }
 
     function getMonthNumber(row) {
-      const raw = String(getMonthRaw(row) || "").trim();
+  const raw = String(getMonthRaw(row) || "").trim();
 
-      if (!raw) return null;
+  if (!raw) return null;
 
-      const direct = Number(raw);
-      if (Number.isInteger(direct) && direct >= 1 && direct <= 12) return direct;
+  const match = raw.match(/^(\d{4})-(\d{2})/);
 
-      const dateLike = new Date(raw);
-      if (!Number.isNaN(dateLike.getTime())) {
-        return dateLike.getMonth() + 1;
-      }
+  if (match) {
+    return Number(match[2]);
+  }
 
-      const match = raw.match(/-(\d{2})-/);
-      if (match) {
-        const month = Number(match[1]);
-        if (month >= 1 && month <= 12) return month;
-      }
-
-      return null;
-    }
+  return null;
+}
 
     function getTipo(row) {
       return normalizeText(getField(row, ["tipo"]));
@@ -313,7 +309,7 @@
     function calculateYearMetrics(rows, year) {
       const filtered = rows.filter(row => getYear(row) === String(year));
 
-      let ingreso = 0;
+      let ventas = 0;
       let costo = 0;
       let gastoOperacional = 0;
 
@@ -321,13 +317,13 @@
         const tipo = getTipo(row);
         const monto = getMonto(row);
 
-        if (tipo === "ingreso") ingreso += monto;
+        if (tipo === "ingreso" && isVenta(row)) ventas += monto;
         if (tipo === "costo") costo += monto;
         if (tipo === "gasto" && !isRetiroDirectores(row)) gastoOperacional += monto;
       });
 
       return {
-        ingreso,
+        ventas,
         costo,
         gastoOperacional,
         margen: ingreso - costo - gastoOperacional
@@ -342,7 +338,7 @@
       for (let m = 1; m <= 12; m += 1) {
         monthMap.set(m, {
           month: m,
-          ingreso: 0,
+          ventas: 0,
           costo: 0,
           gastoOperacional: 0,
           margen: 0
@@ -357,21 +353,21 @@
         const monto = getMonto(row);
         const bucket = monthMap.get(month);
 
-        if (tipo === "ingreso") bucket.ingreso += monto;
+        if (tipo === "ingreso" && isVenta(row)) bucket.ventas += monto;
         if (tipo === "costo") bucket.costo += monto;
         if (tipo === "gasto" && !isRetiroDirectores(row)) bucket.gastoOperacional += monto;
       });
 
       const series = [...monthMap.values()].map(item => ({
         ...item,
-        margen: item.ingreso - item.costo - item.gastoOperacional
+        margen: item.ventas - item.costo - item.gastoOperacional
       }));
 
       return series;
     }
 
     function renderKPIs(metrics) {
-      document.getElementById("kpiVentas").textContent = formatCLP(metrics.ingreso);
+      document.getElementById("kpiVentas").textContent = formatCLP(metrics.ventas);
       document.getElementById("kpiMargen").textContent = formatCLP(metrics.margen);
     }
 
@@ -379,7 +375,7 @@
       const ctx = document.getElementById("mainChart");
 
       const labels = series.map(item => monthLabel(item.month));
-      const ingresos = series.map(item => item.ingreso);
+      const ingresos = series.map(item => item.ventas);
       const margenes = series.map(item => item.margen);
 
       if (chartInstance) {
@@ -392,7 +388,7 @@
           datasets: [
             {
               type: "bar",
-              label: "Ingreso",
+              label: "Ventas",
               data: ingresos,
               yAxisID: "y"
             },
