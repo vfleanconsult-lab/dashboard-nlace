@@ -46,7 +46,7 @@ async function loadData() {
 }
 
 function getYears(data){
-  return [...new Set(data.map(d => d.Ano_eco))];
+  return [...new Set(data.map(d => String(d.Ano_eco).trim()).filter(Boolean))].sort();
 }
 
 function isVenta(d){
@@ -56,13 +56,18 @@ function isVenta(d){
 function getMonth(d){
   if(!d.Mes_economico) return null;
 
-  // extrae mes directo del formato YYYY-MM
-  return Number(d.Mes_economico.substring(5,7));
-}
+  const raw = String(d.Mes_economico).trim();
+  const match = raw.match(/^(\d{4})-(\d{2})/);
 
+  if(match){
+    return Number(match[2]);
+  }
+
+  return null;
+}
 function calculate(data, year){
 
-  const filtered = data.filter(d => d.Ano_eco == year);
+  const filtered = data.filter(d => String(d.Ano_eco).trim() == String(year));
 
   let ventas = 0;
   let costo = 0;
@@ -86,7 +91,7 @@ function calculate(data, year){
 
 function buildChart(data, year){
 
-  const filtered = data.filter(d => d.Ano_eco == year);
+  const filtered = data.filter(d => String(d.Ano_eco).trim() == String(year));
 
   const monthMap = {};
 
