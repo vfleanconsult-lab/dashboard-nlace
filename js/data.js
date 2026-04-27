@@ -1,7 +1,7 @@
 (function (global) {
 ‘use strict’;
 
-var CSV_URL = ‘https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa–mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970’;
+var CSV_URL = 'https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa–mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970';
 
 function buildUrl() {
 var ts = Math.floor(Date.now() / (15 * 60 * 1000));
