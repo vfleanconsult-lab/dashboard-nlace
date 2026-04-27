@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test</title></head>
+<body>
+  <h2 id="estado">Iniciando...</h2>
+  <div id="log" style="font-family:monospace;font-size:13px;line-height:1.8"></div>
+
+  <script>
+  function log(msg, color) {
+    const d = document.getElementById('log');
+    d.innerHTML += `<div style="color:${color||'black'}">${msg}</div>`;
+  }
+
+  // Test 1: Scripts básicos
+  log('✅ HTML carga correctamente');
+
+  // Test 2: PapaParse
+  const s1 = document.createElement('script');
+  s1.src = 'https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js';
+  s1.onload = function() {
+    log('✅ PapaParse cargó OK');
+
+    // Test 3: CSV
+    log('⏳ Probando descarga del CSV...');
+    Papa.parse('https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970', {
+      download: true,
+      header: true,
+      complete: function(r) {
+        log('✅ CSV cargó OK — ' + r.data.length + ' filas', 'green');
+        log('Columnas: ' + Object.keys(r.data[0] || {}).join(', '), 'gray');
+      },
+      error: function(e) {
+        log('❌ Error CSV: ' + e, 'red');
+      }
+    });
+  };
+  s1.onerror = function() { log('❌ PapaParse NO cargó', 'red'); };
+  document.head.appendChild(s1);
+  </script>
+</body>
+</html>
