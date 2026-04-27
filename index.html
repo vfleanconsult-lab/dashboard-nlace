@@ -28,7 +28,7 @@
   <script src="js/ui.js"></script>
   <script>
   (function () {
-    'use strict';
+   'use strict';
 
     var D = NLaceData;
     var C = NLaceCharts;
@@ -38,33 +38,33 @@
 
     document.getElementById('sidebar-mount').innerHTML = U.renderSidebar();
     document.getElementById('header-mount').innerHTML  = U.renderPageHeader(
-      'Resumen Ejecutivo',
-      'Vista consolidada · YTD'
+     'Resumen Ejecutivo',
+     'Vista consolidada · YTD'
     );
 
     C.applyGlobalDefaults();
 
     NLaceUI.onYearChange = function (y) {
-      activeYear = y === 'all' ? null : y;
-      U.setActiveYear(y === 'all' ? 'Todos' : y);
+      activeYear = y ==='all' ? null : y;
+      U.setActiveYear(y ==='all' ?'Todos' : y);
       render();
     };
 
     D.loadData(
       function (rows, years) {
         allRows = rows;
-        U.setDataStatus('ready', rows.length.toLocaleString() + ' registros');
+        U.setDataStatus('ready', rows.length.toLocaleString() +' registros');
         U.populateYearSelector(years);
         U.setLastUpdated(D.getState().loadedAt);
         activeYear = years[0] || null;
-        U.setActiveYear(activeYear || 'Todos');
+        U.setActiveYear(activeYear ||'Todos');
         if (activeYear) document.getElementById('year-select').value = activeYear;
         render();
       },
       function (err) {
-        U.setDataStatus('error', 'Error de carga');
+        U.setDataStatus('error','Error de carga');
         document.getElementById('page-content').innerHTML =
-          '<div class="error-card"><h3>Error al cargar datos</h3><p>Verifica que el Google Sheet sea publico.</p></div>';
+         '<div class="error-card"><h3>Error al cargar datos</h3><p>Verifica que el Google Sheet sea publico.</p></div>';
       }
     );
 
@@ -86,28 +86,28 @@
         return v > 0 ? ((v - c - g) / v * 100) : 0;
       });
 
-      var margenColor = kpis.margenOp >= 0.1 ? 'green' : kpis.margenOp >= 0 ? 'amber' : 'red';
+      var margenColor = kpis.margenOp >= 0.1 ?'green' : kpis.margenOp >= 0 ?'amber' :'red';
 
       document.getElementById('page-content').innerHTML =
-        '<div class="section-label">Indicadores Clave · ' + (activeYear || 'Todos') + '</div>' +
-        '<div class="kpi-grid" id="kpi-grid"></div>' +
-        '<div class="section-label mt-16">Evolucion Mensual</div>' +
-        '<div class="chart-card" style="margin-bottom:16px">' +
-          '<div class="chart-header">' +
-            '<div><div class="chart-title">Ventas Mensuales &amp; Margen Operacional</div>' +
-            '<div class="chart-subtitle">Barras = Ventas · Linea = Margen Op. %</div></div>' +
-            '<div class="chart-legend">' +
-              '<div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Ventas</div>' +
-              '<div class="legend-item"><div class="legend-dot" style="background:var(--accent-amber)"></div>Margen Op.</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="chart-container tall"><canvas id="chart-barline"></canvas></div>' +
-        '</div>' +
-        '<div class="section-label mt-16">Ventas vs Punto de Equilibrio</div>' +
-        '<div class="table-card">' +
-          '<div class="table-header"><span class="table-title">Analisis mensual</span><span class="table-badge">Parametrizable</span></div>' +
-          '<table class="data-table"><thead><tr><th>Mes</th><th>Ventas</th><th>Punto de Equilibrio</th><th>Estado</th></tr></thead>' +
-          '<tbody id="pe-tbody"></tbody></table>' +
-        '</div>';
+       '<div class="section-label">Indicadores Clave ·' + (activeYear ||'Todos') +'</div>' +
+       '<div class="kpi-grid" id="kpi-grid"></div>' +
+       '<div class="section-label mt-16">Evolucion Mensual</div>' +
+       '<div class="chart-card" style="margin-bottom:16px">' +
+         '<div class="chart-header">' +
+           '<div><div class="chart-title">Ventas Mensuales &amp; Margen Operacional</div>' +
+           '<div class="chart-subtitle">Barras = Ventas · Linea = Margen Op. %</div></div>' +
+           '<div class="chart-legend">' +
+             '<div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Ventas</div>' +
+             '<div class="legend-item"><div class="legend-dot" style="background:var(--accent-amber)"></div>Margen Op.</div>' +
+           '</div>' +
+         '</div>' +
+         '<div class="chart-container tall"><canvas id="chart-barline"></canvas></div>' +
+       '</div>' +
+       '<div class="section-label mt-16">Ventas vs Punto de Equilibrio</div>' +
+       '<div class="table-card">' +
+         '<div class="table-header"><span class="table-title">Analisis mensual</span><span class="table-badge">Parametrizable</span></div>' +
+         '<table class="data-table"><thead><tr><th>Mes</th><th>Ventas</th><th>Punto de Equilibrio</th><th>Estado</th></tr></thead>' +
+         '<tbody id="pe-tbody"></tbody></table>' +
+       '</div>';
 
       var kpiGrid = document.getElementById('kpi​​​​​​​​​​​​​​​​

@@ -7,46 +7,46 @@
 
   <script>
   function log(msg, color) {
-    document.getElementById('log').innerHTML += '<div style="color:' + (color||'black') + '">' + msg + '</div>';
+    document.getElementById('log').innerHTML +='<div style="color:' + (color||'black') +'">' + msg +'</div>';
   }
   </script>
 
   <!-- Test Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"
-    onload="log('OK Chart.js cargo', 'green')"
-    onerror="log('ERROR Chart.js no cargo', 'red')">
+    onload="log('OK Chart.js cargo','green')"
+    onerror="log('ERROR Chart.js no cargo','red')">
   </script>
 
   <!-- Test PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"
-    onload="log('OK PapaParse cargo', 'green')"
-    onerror="log('ERROR PapaParse no cargo', 'red')">
+    onload="log('OK PapaParse cargo','green')"
+    onerror="log('ERROR PapaParse no cargo','red')">
   </script>
 
   <!-- Test data.js -->
   <script src="js/data.js"
-    onload="log('OK data.js cargo', 'green')"
-    onerror="log('ERROR data.js no cargo', 'red')">
+    onload="log('OK data.js cargo','green')"
+    onerror="log('ERROR data.js no cargo','red')">
   </script>
 
   <!-- Test charts.js -->
   <script src="js/charts.js"
-    onload="log('OK charts.js cargo', 'green')"
-    onerror="log('ERROR charts.js no cargo', 'red')">
+    onload="log('OK charts.js cargo','green')"
+    onerror="log('ERROR charts.js no cargo','red')">
   </script>
 
   <!-- Test ui.js -->
   <script src="js/ui.js"
-    onload="log('OK ui.js cargo', 'green')"
-    onerror="log('ERROR ui.js no cargo', 'red')">
+    onload="log('OK ui.js cargo','green')"
+    onerror="log('ERROR ui.js no cargo','red')">
   </script>
 
   <script>
   setTimeout(function() {
-    log('--- Verificando variables ---', 'gray');
-    log(typeof NLaceData  !== 'undefined' ? 'OK NLaceData existe'  : 'ERROR NLaceData no existe',  typeof NLaceData  !== 'undefined' ? 'green' : 'red');
-    log(typeof NLaceCharts !== 'undefined' ? 'OK NLaceCharts existe' : 'ERROR NLaceCharts no existe', typeof NLaceCharts !== 'undefined' ? 'green' : 'red');
-    log(typeof NLaceUI    !== 'undefined' ? 'OK NLaceUI existe'    : 'ERROR NLaceUI no existe',    typeof NLaceUI    !== 'undefined' ? 'green' : 'red');
+    log('--- Verificando variables ---','gray');
+    log(typeof NLaceData  !=='undefined' ?'OK NLaceData existe'  :'ERROR NLaceData no existe',  typeof NLaceData  !=='undefined' ?'green' :'red');
+    log(typeof NLaceCharts !=='undefined' ?'OK NLaceCharts existe' :'ERROR NLaceCharts no existe', typeof NLaceCharts !=='undefined' ?'green' :'red');
+    log(typeof NLaceUI    !=='undefined' ?'OK NLaceUI existe'    :'ERROR NLaceUI no existe',    typeof NLaceUI    !=='undefined' ?'green' :'red');
   }, 2000);
   </script>
 
