@@ -9,8 +9,7 @@
 ‘use strict’;
 
 // ── Config ──────────────────────────────────────────────────────────────
-const CSV_URL =
-‘https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa–mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970’;
+const CSV_URL = "https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/gviz/tq?tqx=out:csv&gid=1320604970";
 
 // Cache buster: refresca cada 15 minutos
 function buildUrl() {
