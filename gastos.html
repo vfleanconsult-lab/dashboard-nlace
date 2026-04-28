@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NLACE — Gastos Operacionales</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <div id="sidebar-mount"></div>
+
+  <main class="main">
+    <div id="header-mount"></div>
+    <div class="content" id="page-content">
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Cargando gastos operacionales…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const D = NLaceData, C = NLaceCharts, U = NLaceUI;
+    let allRows = [], activeYear = null;
+
+    document.getElementById('sidebar-mount').innerHTML = U.renderSidebar();
+    document.getElementById('header-mount').innerHTML = U.renderPageHeader('Gastos Operacionales', 'Excluye retiro de directores · YTD');
+    C.applyGlobalDefaults();
+
+    NLaceUI.onYearChange = function (y) {
+      activeYear = y === 'all' ? null : y;
+      U.setActiveYear(y === 'all' ? 'Todos' : y);
+      render();
+    };
+
+    D.loadData(
+      function (rows, years) {
+        allRows = rows;
+        U.setDataStatus('ready', `${rows.length.toLocaleString()} registros`);
+        U.populateYearSelector(years);
+        U.setLastUpdated(D.getState().loadedAt);
+        activeYear = years[0] || null;
+        U.setActiveYear(activeYear || 'Todos');
+        if (activeYear) document.getElementById('year-select').value = activeYear;
+        render();
+      },
+      function () {
+        U.setDataStatus('error', 'Error de carga');
+        document.getElementById('page-content').innerHTML = `<div class="error-card"><h3>Error</h3><p>No se pudieron cargar los datos.</p></div>`;
+      }
+    );
+
+    function render() {
+      const rows   = D.filterByYear(allRows, activeYear);
+      const ventas = D.sumMonto(rows.filter(D.isVenta));
+      const gastos = D.sumMonto(rows.filter(D.isGasto));
+
+      // Excluidos (retiro directores - para transparencia)
+      const retirosExcl = D.sumMonto(rows.filter(r => D.getTipo(r) === 'Gasto' && D.isRetiroDirectores(r)));
+
+      // Clasificaciones de gastos
+      const clasifMap     = D.groupGastosByClasif(rows);
+      const clasifEntries = Object.entries(clasifMap).sort((a,b) => b[1]-a[1]);
+
+      // Mensuales
+      const months = D.getMonthsForYear(allRows, activeYear || D.getState().years[0]);
+      const labels = months.map(D.monthLabel);
+      const gastosByM = D.groupByMonth(rows, D.isGasto);
+      const gastosArr = months.map(m => gastosByM[m] || 0);
+
+      // Pie por categoría (top 7)
+      const pieLabels = clasifEntries.slice(0,7).map(([k])=>k||'Sin clasificar');
+      const pieData   = clasifEntries.slice(0,7).map(([,v])=>v);
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="section-label">${activeYear || 'Todos los años'} · Gastos Operacionales</div>
+        <div class="kpi-grid cols-3" id="kpi-grid"></div>
+
+        <div class="section-label mt-16">Evolución y Distribución</div>
+        <div class="chart-grid cols-2" style="margin-bottom:16px">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Gastos Mensuales</div>
+                <div class="chart-subtitle">Tipo = Gasto · Excluye retiro directores</div>
+              </div>
+            </div>
+            <div class="chart-container tall">
+              <canvas id="chart-gastos-bar"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Distribución por Categoría YTD</div>
+                <div class="chart-subtitle">Clasificacion_Gasto</div>
+              </div>
+            </div>
+            <div class="chart-container tall" style="height:280px">
+              <canvas id="chart-gastos-pie"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label mt-16">Ranking de Gastos por Categoría</div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Top gastos YTD · Clasificacion_Gasto</span>
+            <span class="table-badge">${clasifEntries.length} categorías</span>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Categoría</th>
+                <th>Monto YTD</th>
+                <th>% del Total</th>
+                <th>% sobre Ventas</th>
+              </tr>
+            </thead>
+            <tbody id="gastos-tbody"></tbody>
+          </table>
+        </div>
+
+        ${retirosExcl > 0 ? `
+        <div class="section-label mt-16">Excluidos del análisis</div>
+        <div class="kpi-card" style="max-width:340px">
+          <div class="kpi-label"><span class="kpi-dot" style="background:var(--text-muted)"></span>Retiro de Directores (excluido)</div>
+          <div class="kpi-value white">${D.formatCLP(retirosExcl, true)}</div>
+          <div class="kpi-sub">No incluido en gastos operacionales por regla de negocio</div>
+        </div>` : ''}
+      `;
+
+      // KPIs
+      const pctVentas = ventas > 0 ? gastos / ventas : 0;
+      document.getElementById('kpi-grid').innerHTML = [
+        U.kpiCard({ label: 'Gastos Operacionales YTD', value: D.formatCLP(gastos, true), sub: D.formatCLP(gastos), color: 'red', dotColor: 'var(--accent-red)', icon: '◆' }),
+        U.kpiCard({ label: '% sobre Ventas', value: D.formatPct(pctVentas), sub: `Referencia saludable: <30%`, color: pctVentas < 0.3 ? 'green' : pctVentas < 0.5 ? 'amber' : 'red', dotColor: pctVentas < 0.3 ? 'var(--accent-green)' : pctVentas < 0.5 ? 'var(--accent-amber)' : 'var(--accent-red)' }),
+        U.kpiCard({ label: 'Categorías activas', value: clasifEntries.length.toString(), sub: `Período: ${activeYear || 'todos'}`, color: 'purple', dotColor: 'var(--accent-purple)' }),
+      ].join('');
+
+      // Gráficos
+      C.renderBar('chart-gastos-bar', labels, gastosArr, { label: 'Gastos Op.', color: C.COLORS.red });
+      C.renderDonut('chart-gastos-pie', pieLabels, pieData, { cutout: '65%' });
+
+      // Tabla ranking
+      const tbody = document.getElementById('gastos-tbody');
+      clasifEntries.forEach(([clas, monto], i) => {
+        const pct    = gastos > 0 ? (monto / gastos * 100).toFixed(1) : 0;
+        const pctVta = ventas > 0 ? (monto / ventas * 100).toFixed(1) : '—';
+        const barColor = C.PALETTE[i % C.PALETTE.length];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="rank-badge ${i<3?'top':''}">${i+1}</span></td>
+          <td class="primary">${clas || 'Sin clasificar'}</td>
+          <td class="mono">${D.formatCLP(monto)}</td>
+          <td>
+            <span class="mono">${pct}%</span>
+            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${barColor}"></div></div>
+          </td>
+          <td class="mono">${pctVta}${pctVta !== '—' ? '%' : ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (clasifEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align:center;padding:24px">Sin gastos en el período</td></tr>`;
+      }
+    }
+  })();
+  </script>
+</body>
+</html>

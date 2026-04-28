@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NLACE — Ingresos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <div id="sidebar-mount"></div>
+
+  <main class="main">
+    <div id="header-mount"></div>
+    <div class="content" id="page-content">
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Cargando datos de ingresos…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const D = NLaceData, C = NLaceCharts, U = NLaceUI;
+    let allRows = [], activeYear = null;
+
+    document.getElementById('sidebar-mount').innerHTML = U.renderSidebar();
+    document.getElementById('header-mount').innerHTML = U.renderPageHeader('Ingresos', 'Ventas y otros ingresos · YTD');
+    C.applyGlobalDefaults();
+
+    NLaceUI.onYearChange = function (y) {
+      activeYear = y === 'all' ? null : y;
+      U.setActiveYear(y === 'all' ? 'Todos' : y);
+      render();
+    };
+
+    D.loadData(
+      function (rows, years) {
+        allRows = rows;
+        U.setDataStatus('ready', `${rows.length.toLocaleString()} registros`);
+        U.populateYearSelector(years);
+        U.setLastUpdated(D.getState().loadedAt);
+        activeYear = years[0] || null;
+        U.setActiveYear(activeYear || 'Todos');
+        if (activeYear) document.getElementById('year-select').value = activeYear;
+        render();
+      },
+      function () {
+        U.setDataStatus('error', 'Error de carga');
+        document.getElementById('page-content').innerHTML = `<div class="error-card"><h3>Error</h3><p>No se pudieron cargar los datos.</p></div>`;
+      }
+    );
+
+    function render() {
+      const rows = D.filterByYear(allRows, activeYear);
+      const ventas       = D.sumMonto(rows.filter(D.isVenta));
+      const otrosIng     = D.sumMonto(rows.filter(D.isOtroIngreso));
+      const totalIng     = ventas + otrosIng;
+
+      const months = D.getMonthsForYear(allRows, activeYear || D.getState().years[0]);
+      const labels = months.map(D.monthLabel);
+
+      const ventasByM    = D.groupByMonth(rows, D.isVenta);
+      const otrosByM     = D.groupByMonth(rows, D.isOtroIngreso);
+      const ventasArr    = months.map(m => ventasByM[m] || 0);
+      const otrosArr     = months.map(m => otrosByM[m] || 0);
+      const totalArr     = months.map((m, i) => ventasArr[i] + otrosArr[i]);
+
+      // Desglose por cuenta (otros ingresos)
+      const otrosMap = {};
+      rows.filter(D.isOtroIngreso).forEach(r => {
+        const key = D.getDesc(r) || D.getCuenta(r) || 'Sin descripción';
+        otrosMap[key] = (otrosMap[key] || 0) + D.getMonto(r);
+      });
+      const otrosEntries = Object.entries(otrosMap).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="section-label">${activeYear || 'Todos los años'} · Ingresos consolidados</div>
+        <div class="kpi-grid cols-3" id="kpi-grid"></div>
+
+        <div class="section-label mt-16">Evolución Mensual</div>
+        <div class="chart-grid cols-2" style="margin-bottom:16px">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Ventas Mensuales</div>
+                <div class="chart-subtitle">Cuenta 5101-01 · Tipo = Ingreso</div>
+              </div>
+            </div>
+            <div class="chart-container tall">
+              <canvas id="chart-ventas"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Ventas vs Otros Ingresos</div>
+                <div class="chart-subtitle">Comparativa mensual apilada</div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Ventas</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--accent-blue)"></div>Otros</div>
+              </div>
+            </div>
+            <div class="chart-container tall">
+              <canvas id="chart-comparativa"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label mt-16">Desglose Otros Ingresos YTD</div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Ranking por cuenta / descripción</span>
+            <span class="table-badge">${otrosEntries.length} cuentas</span>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Descripción / Cuenta</th>
+                <th>Monto YTD</th>
+                <th>% del Total</th>
+              </tr>
+            </thead>
+            <tbody id="otros-tbody"></tbody>
+          </table>
+        </div>
+      `;
+
+      // KPIs
+      document.getElementById('kpi-grid').innerHTML = [
+        U.kpiCard({ label: 'Ventas YTD', value: D.formatCLP(ventas, true), sub: D.formatCLP(ventas), color: 'green', dotColor: 'var(--accent-green)', icon: '↑' }),
+        U.kpiCard({ label: 'Otros Ingresos YTD', value: D.formatCLP(otrosIng, true), sub: D.formatCLP(otrosIng), color: 'blue', dotColor: 'var(--accent-blue)', icon: '+' }),
+        U.kpiCard({ label: 'Total Ingresos YTD', value: D.formatCLP(totalIng, true), sub: `Ventas: ${totalIng > 0 ? (ventas/totalIng*100).toFixed(1) : 0}% del total`, color: 'purple', dotColor: 'var(--accent-purple)', icon: '∑' }),
+      ].join('');
+
+      // Gráficos
+      C.renderBar('chart-ventas', labels, ventasArr, { label: 'Ventas', color: NLaceCharts.COLORS.green });
+      C.renderStackedBar('chart-comparativa', labels, [
+        { label: 'Ventas', data: ventasArr, color: NLaceCharts.COLORS.green },
+        { label: 'Otros Ingresos', data: otrosArr, color: NLaceCharts.COLORS.blue },
+      ]);
+
+      // Tabla otros ingresos
+      const tbody = document.getElementById('otros-tbody');
+      otrosEntries.forEach(([desc, monto], i) => {
+        const pct = otrosIng > 0 ? (monto / otrosIng * 100).toFixed(1) : 0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="rank-badge ${i < 3 ? 'top' : ''}">${i+1}</span></td>
+          <td class="primary">${desc}</td>
+          <td class="mono">${D.formatCLP(monto)}</td>
+          <td>
+            <span class="mono">${pct}%</span>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:var(--accent-blue)"></div></div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (otrosEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-muted" style="text-align:center;padding:24px">Sin otros ingresos en el período</td></tr>`;
+      }
+    }
+  })();
+  </script>
+</body>
+</html>

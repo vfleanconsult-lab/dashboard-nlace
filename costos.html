@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NLACE — Costos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <div id="sidebar-mount"></div>
+
+  <main class="main">
+    <div id="header-mount"></div>
+    <div class="content" id="page-content">
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Cargando datos de costos…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const D = NLaceData, C = NLaceCharts, U = NLaceUI;
+    let allRows = [], activeYear = null;
+
+    document.getElementById('sidebar-mount').innerHTML = U.renderSidebar();
+    document.getElementById('header-mount').innerHTML = U.renderPageHeader('Costos', 'Estructura de costos · YTD');
+    C.applyGlobalDefaults();
+
+    NLaceUI.onYearChange = function (y) {
+      activeYear = y === 'all' ? null : y;
+      U.setActiveYear(y === 'all' ? 'Todos' : y);
+      render();
+    };
+
+    D.loadData(
+      function (rows, years) {
+        allRows = rows;
+        U.setDataStatus('ready', `${rows.length.toLocaleString()} registros`);
+        U.populateYearSelector(years);
+        U.setLastUpdated(D.getState().loadedAt);
+        activeYear = years[0] || null;
+        U.setActiveYear(activeYear || 'Todos');
+        if (activeYear) document.getElementById('year-select').value = activeYear;
+        render();
+      },
+      function () {
+        U.setDataStatus('error', 'Error de carga');
+        document.getElementById('page-content').innerHTML = `<div class="error-card"><h3>Error</h3><p>No se pudieron cargar los datos.</p></div>`;
+      }
+    );
+
+    function render() {
+      const rows   = D.filterByYear(allRows, activeYear);
+      const ventas = D.sumMonto(rows.filter(D.isVenta));
+      const costos = D.sumMonto(rows.filter(D.isCosto));
+      const margenBruto = ventas > 0 ? (ventas - costos) / ventas : 0;
+
+      // Clasificación de costos
+      const clasifMap = D.groupCostosByClasif(rows);
+      const clasifEntries = Object.entries(clasifMap).sort((a,b) => b[1]-a[1]);
+
+      // Determinar "Costo de venta" vs "Costo de explotación" usando Clasificacion_Cto
+      // Separamos en 2 grupos principales
+      const costoVentaKeys  = clasifEntries.filter(([k]) => k.toLowerCase().includes('venta') || k.toLowerCase().includes('directo') || k.toLowerCase().includes('produccion') || k.toLowerCase().includes('producción'));
+      const costoExplotKeys = clasifEntries.filter(([k]) => !costoVentaKeys.find(cv => cv[0] === k));
+
+      const costoVenta  = costoVentaKeys.reduce((s,[,v]) => s+v, 0);
+      const costoExplot = costoExplotKeys.reduce((s,[,v]) => s+v, 0);
+
+      // Mensuales por clasificación
+      const months = D.getMonthsForYear(allRows, activeYear || D.getState().years[0]);
+      const labels = months.map(D.monthLabel);
+
+      // Apilado: hasta 5 clasificaciones más un "Resto"
+      const topClasif = clasifEntries.slice(0, 5);
+      const restClasif = clasifEntries.slice(5);
+      const restTotal = restClasif.reduce((s,[,v])=>s+v,0);
+
+      const stackedDatasets = topClasif.map(([clas], i) => ({
+        label: clas || 'Sin clasificar',
+        color: C.PALETTE[i],
+        data: months.map(m => {
+          return rows.filter(r => D.isCosto(r) && D.getMonth(r) === m && (D.getClasifCto(r) || D.getClasGasto(r) || 'Sin clasificar') === clas)
+                     .reduce((s,r) => s + D.getMonto(r), 0);
+        })
+      }));
+
+      if (restClasif.length > 0) {
+        stackedDatasets.push({
+          label: 'Resto',
+          color: C.PALETTE[5],
+          data: months.map(m => {
+            const topSet = new Set(topClasif.map(([k])=>k));
+            return rows.filter(r => D.isCosto(r) && D.getMonth(r) === m && !topSet.has(D.getClasifCto(r) || D.getClasGasto(r) || 'Sin clasificar'))
+                       .reduce((s,r) => s + D.getMonto(r), 0);
+          })
+        });
+      }
+
+      // Donut YTD
+      const donutLabels = clasifEntries.slice(0,7).map(([k])=>k||'Sin clasificar');
+      const donutData   = clasifEntries.slice(0,7).map(([,v])=>v);
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="section-label">${activeYear || 'Todos los años'} · Estructura de costos</div>
+        <div class="kpi-grid cols-4" id="kpi-grid"></div>
+
+        <div class="section-label mt-16">Evolución Mensual</div>
+        <div class="chart-grid cols-3" style="margin-bottom:16px">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Costos Mensuales por Clasificación</div>
+                <div class="chart-subtitle">Barras apiladas · Top clasificaciones</div>
+              </div>
+            </div>
+            <div class="chart-container tall">
+              <canvas id="chart-stacked"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div>
+                <div class="chart-title">Proporción YTD</div>
+                <div class="chart-subtitle">Distribución por clasificación</div>
+              </div>
+            </div>
+            <div class="chart-container tall" style="height:280px">
+              <canvas id="chart-donut"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label mt-16">Desglose por Clasificación</div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Ranking de costos YTD</span>
+            <span class="table-badge">${clasifEntries.length} clasificaciones</span>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Clasificación</th>
+                <th>Monto YTD</th>
+                <th>% del Total</th>
+                <th>% sobre Ventas</th>
+              </tr>
+            </thead>
+            <tbody id="costos-tbody"></tbody>
+          </table>
+        </div>
+      `;
+
+      // KPIs
+      const kpiGrid = document.getElementById('kpi-grid');
+      kpiGrid.innerHTML = [
+        U.kpiCard({ label: 'Costos Totales YTD', value: D.formatCLP(costos, true), sub: D.formatCLP(costos), color: 'amber', dotColor: 'var(--accent-amber)', icon: '▼' }),
+        U.kpiCard({ label: 'Margen Bruto', value: D.formatPct(margenBruto), sub: `Utilidad bruta: ${D.formatCLP(ventas - costos, true)}`, color: margenBruto > 0.3 ? 'green' : margenBruto > 0.1 ? 'amber' : 'red', dotColor: margenBruto > 0.3 ? 'var(--accent-green)' : 'var(--accent-amber)' }),
+        U.kpiCard({ label: 'Costo de Venta Est.', value: D.formatCLP(costoVenta, true), sub: `${costos > 0 ? (costoVenta/costos*100).toFixed(1) : 0}% del total`, color: 'blue', dotColor: 'var(--accent-blue)' }),
+        U.kpiCard({ label: 'Costo de Explotación', value: D.formatCLP(costoExplot, true), sub: `${costos > 0 ? (costoExplot/costos*100).toFixed(1) : 0}% del total`, color: 'purple', dotColor: 'var(--accent-purple)' }),
+      ].join('');
+
+      // Gráficos
+      C.renderStackedBar('chart-stacked', labels, stackedDatasets);
+      C.renderDonut('chart-donut', donutLabels, donutData);
+
+      // Tabla
+      const tbody = document.getElementById('costos-tbody');
+      clasifEntries.forEach(([clas, monto], i) => {
+        const pct     = costos > 0 ? (monto / costos * 100).toFixed(1) : 0;
+        const pctVta  = ventas > 0 ? (monto / ventas * 100).toFixed(1) : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="rank-badge ${i<3?'top':''}">${i+1}</span></td>
+          <td class="primary">${clas || 'Sin clasificar'}</td>
+          <td class="mono">${D.formatCLP(monto)}</td>
+          <td>
+            <span class="mono">${pct}%</span>
+            <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${C.PALETTE[i % C.PALETTE.length]}"></div></div>
+          </td>
+          <td class="mono ${parseFloat(pctVta) > 50 ? 'text-red' : 'text-amber'}">${pctVta}${pctVta !== '—' ? '%' : ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (clasifEntries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align:center;padding:24px">Sin costos en el período</td></tr>`;
+      }
+    }
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NLACE — Cobranzas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <div id="sidebar-mount"></div>
+
+  <main class="main">
+    <div id="header-mount"></div>
+    <div class="content" id="page-content">
+      <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Cargando datos de cobranzas…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const D = NLaceData, C = NLaceCharts, U = NLaceUI;
+    let allRows = [], activeYear = null;
+
+    document.getElementById('sidebar-mount').innerHTML = U.renderSidebar();
+    document.getElementById('header-mount').innerHTML = U.renderPageHeader('Cobranzas', 'DSO · Días promedio de cobro');
+    C.applyGlobalDefaults();
+
+    NLaceUI.onYearChange = function (y) {
+      activeYear = y === 'all' ? null : y;
+      U.setActiveYear(y === 'all' ? 'Todos' : y);
+      render();
+    };
+
+    D.loadData(
+      function (rows, years) {
+        allRows = rows;
+        U.setDataStatus('ready', `${rows.length.toLocaleString()} registros`);
+        U.populateYearSelector(years);
+        U.setLastUpdated(D.getState().loadedAt);
+        activeYear = years[0] || null;
+        U.setActiveYear(activeYear || 'Todos');
+        if (activeYear) document.getElementById('year-select').value = activeYear;
+        render();
+      },
+      function () {
+        U.setDataStatus('error', 'Error de carga');
+        document.getElementById('page-content').innerHTML = `<div class="error-card"><h3>Error</h3><p>No se pudieron cargar los datos.</p></div>`;
+      }
+    );
+
+    function render() {
+      const rows = D.filterByYear(allRows, activeYear);
+      const dsoGlobal = D.calcDSO(rows);
+      const dsoClientes = D.calcDSOByCliente(rows);
+      const ventasTotal = D.sumMonto(rows.filter(D.isVenta));
+
+      // DSO mensual
+      const months = D.getMonthsForYear(allRows, activeYear || D.getState().years[0]);
+      const labels = months.map(D.monthLabel);
+      const dsoMensual = months.map(m => {
+        const rowsM = D.filterByMonth(rows, m);
+        const dso = D.calcDSO(rowsM.filter(D.isVenta).length > 0 ? rowsM : []);
+        return dso !== null ? parseFloat(dso.toFixed(1)) : null;
+      });
+
+      // Clasif DSO: verde < 30d, ámbar 30-60d, rojo > 60d
+      function dsoBadge(dias) {
+        if (dias === null) return `<span class="badge blue">Sin datos</span>`;
+        if (dias <= 30) return `<span class="badge green">${dias.toFixed(0)}d</span>`;
+        if (dias <= 60) return `<span class="badge amber">${dias.toFixed(0)}d</span>`;
+        return `<span class="badge red">${dias.toFixed(0)}d</span>`;
+      }
+
+      const dsoColor = dsoGlobal === null ? 'white'
+        : dsoGlobal <= 30 ? 'green'
+        : dsoGlobal <= 60 ? 'amber'
+        : 'red';
+
+      // ¿Hay datos de fechas de pago?
+      const tienesFechas = rows.some(r => D.isVenta(r) && D.getFechaEmision(r) && D.getFechaPago(r));
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="section-label">${activeYear || 'Todos los años'} · Análisis de cobranzas</div>
+
+        ${!tienesFechas ? `
+        <div class="error-card" style="margin-bottom:20px">
+          <h3>Datos de fechas incompletos</h3>
+          <p>No se encontraron registros con Fecha_emision y Fecha_Pago simultáneamente en el período seleccionado. El cálculo de DSO requiere ambas fechas pobladas en la fuente de datos.</p>
+        </div>` : ''}
+
+        <div class="kpi-grid cols-3" id="kpi-grid"></div>
+
+        <div class="section-label mt-16">DSO Mensual</div>
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Evolución DSO — Días Promedio de Cobro</div>
+              <div class="chart-subtitle">Referencia: &lt;30d saludable · 30-60d alerta · &gt;60d crítico</div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-dso-line"></canvas>
+          </div>
+        </div>
+
+        <div class="section-label mt-16">Ranking de Clientes por DSO</div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Clientes ordenados por días promedio de pago</span>
+            <span class="table-badge">${dsoClientes.length} clientes</span>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cliente / Descripción</th>
+                <th>DSO Promedio</th>
+                <th>Clasificación</th>
+                <th>Transacciones</th>
+                <th>Monto Total</th>
+              </tr>
+            </thead>
+            <tbody id="dso-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="section-label mt-16">Distribución DSO por Tramo</div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Clientes por tramo de días de cobro</div>
+              <div class="chart-subtitle">N° de clientes en cada rango</div>
+            </div>
+          </div>
+          <div class="chart-container short">
+            <canvas id="chart-dso-dist"></canvas>
+          </div>
+        </div>
+      `;
+
+      // KPIs
+      document.getElementById('kpi-grid').innerHTML = [
+        U.kpiCard({
+          label: 'DSO Global',
+          value: dsoGlobal !== null ? D.formatDays(dsoGlobal) : '—',
+          sub: dsoGlobal !== null
+            ? (dsoGlobal <= 30 ? 'Saludable' : dsoGlobal <= 60 ? 'Alerta — revisar' : 'Crítico — acción requerida')
+            : 'Sin fechas de pago en el período',
+          color: dsoColor,
+          dotColor: `var(--accent-${dsoColor === 'white' ? '' : dsoColor + ''})`,
+          icon: '⏱'
+        }),
+        U.kpiCard({
+          label: 'Clientes con DSO &gt; 60d',
+          value: dsoClientes.filter(c => c.dsoDias > 60).length.toString(),
+          sub: `De ${dsoClientes.length} clientes totales`,
+          color: dsoClientes.filter(c=>c.dsoDias>60).length > 0 ? 'red' : 'green',
+          dotColor: dsoClientes.filter(c=>c.dsoDias>60).length > 0 ? 'var(--accent-red)' : 'var(--accent-green)',
+        }),
+        U.kpiCard({
+          label: 'Ventas analizadas',
+          value: D.formatCLP(ventasTotal, true),
+          sub: `${dsoClientes.length} clientes identificados`,
+          color: 'blue',
+          dotColor: 'var(--accent-blue)',
+          icon: '$'
+        }),
+      ].join('');
+
+      // Gráfico línea DSO mensual
+      const validDso = dsoMensual.filter(v => v !== null);
+      if (validDso.length > 0) {
+        C.renderLine('chart-dso-line', labels, [{
+          label: 'DSO (días)',
+          data: dsoMensual,
+          color: C.COLORS.amber,
+          fill: false
+        }], {
+          isPct: false,
+          scaleOpts: {
+            ytick: v => v + 'd'
+          }
+        });
+      } else {
+        document.getElementById('chart-dso-line').parentElement.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px">
+            Sin datos de fechas para calcular DSO mensual
+          </div>`;
+      }
+
+      // Tabla ranking clientes
+      const tbody = document.getElementById('dso-tbody');
+      if (dsoClientes.length > 0) {
+        dsoClientes.forEach((c, i) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><span class="rank-badge ${i<3?'top':''}">${i+1}</span></td>
+            <td class="primary">${c.cliente}</td>
+            <td class="mono">${c.dsoDias.toFixed(1)} días</td>
+            <td>${dsoBadge(c.dsoDias)}</td>
+            <td class="mono">${c.transacciones}</td>
+            <td class="mono">${D.formatCLP(c.monto)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-muted" style="text-align:center;padding:24px">
+          Sin datos de clientes con fechas de pago completas en el período
+        </td></tr>`;
+      }
+
+      // Distribución por tramo
+      const tramos = [
+        { label: '≤ 15d',  min: 0,  max: 15 },
+        { label: '16-30d', min: 16, max: 30 },
+        { label: '31-45d', min: 31, max: 45 },
+        { label: '46-60d', min: 46, max: 60 },
+        { label: '61-90d', min: 61, max: 90 },
+        { label: '> 90d',  min: 91, max: Infinity },
+      ];
+      const tramoCounts = tramos.map(t =>
+        dsoClientes.filter(c => c.dsoDias >= t.min && c.dsoDias <= t.max).length
+      );
+      const tramoColors = [C.COLORS.green, C.COLORS.green, C.COLORS.amber, C.COLORS.amber, C.COLORS.red, C.COLORS.red];
+
+      if (dsoClientes.length > 0) {
+        Chart.getChart('chart-dso-dist') && Chart.getChart('chart-dso-dist').destroy();
+        const ctx = document.getElementById('chart-dso-dist');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: tramos.map(t => t.label),
+            datasets: [{
+              label: 'N° clientes',
+              data: tramoCounts,
+              backgroundColor: tramoColors.map(c => C.hexToRgba(c, 0.7)),
+              borderColor: tramoColors,
+              borderWidth: 1,
+              borderRadius: 4,
+              borderSkipped: false,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, ticks: { color: '#8a9bb0' }, border: { display: false } },
+              y: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, ticks: { color: '#8a9bb0', stepSize: 1 }, border: { display: false } }
+            },
+            plugins: {
+              tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} cliente(s)` } }
+            }
+          }
+        });
+      } else {
+        document.getElementById('chart-dso-dist').parentElement.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:center;height:180px;color:var(--text-muted);font-family:var(--font-mono);font-size:12px">
+            Sin datos suficientes para distribución
+          </div>`;
+      }
+    }
+  })();
+  </script>
+</body>
+</html>
