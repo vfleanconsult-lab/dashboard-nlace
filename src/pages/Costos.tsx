@@ -15,7 +15,7 @@ import ProgressBar from '../components/ProgressBar'
 import { LoadingState, ErrorState } from '../components/LoadingState'
 import BarChartV from '../components/charts/BarChartV'
 import NlacePieChart from '../components/charts/PieChart'
-import { PALETTE, COLORS } from '../components/charts/theme'
+import { PALETTE } from '../components/charts/theme'
 
 export default function Costos() {
   const { rows: allRows, years, loading, error, loadedAt } = useData()
@@ -52,7 +52,7 @@ export default function Costos() {
         .reduce((s, r) => s + D.getMonto(r), 0)
     })
     if (restClasif.length > 0) {
-      base['Resto'] = filtered
+      base['Resto'] = rows
         .filter(r => D.isCosto(r) && D.getMonth(r) === m && !topSet.has(D.getClasifCto(r) || D.getClasGasto(r) || 'Sin clasificar'))
         .reduce((s, r) => s + D.getMonto(r), 0)
     }

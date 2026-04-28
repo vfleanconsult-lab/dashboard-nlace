@@ -14,7 +14,7 @@ import RankBadge from '../components/RankBadge'
 import { LoadingState, ErrorState } from '../components/LoadingState'
 import LineChartR from '../components/charts/LineChartR'
 import BarChartV from '../components/charts/BarChartV'
-import { COLORS, PALETTE } from '../components/charts/theme'
+import { COLORS } from '../components/charts/theme'
 
 function DsoBadge({ dias }: { dias: number }) {
   if (dias <= 30) return <span className="inline-block text-[10px] font-mono font-medium text-nl-success-text bg-nl-success-bg border border-nl-success-dark/20 rounded-pill px-2.5 py-0.5 cursor-default">{dias.toFixed(0)}d · Saludable</span>

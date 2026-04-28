@@ -11,7 +11,6 @@ import SectionLabel from '../components/SectionLabel'
 import ChartCard from '../components/ChartCard'
 import { LoadingState, ErrorState } from '../components/LoadingState'
 import AreaBarChart from '../components/charts/AreaBarChart'
-import { COLORS } from '../components/charts/theme'
 
 function calcCompareKPIs(rows: D.Row[] | null) {
   if (!rows) return null

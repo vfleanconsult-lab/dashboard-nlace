@@ -1,6 +1,6 @@
 interface Column<T> {
   header: string
-  accessor: keyof T | ((row: T) => React.ReactNode)
+  accessor: keyof T | ((row: T, index: number) => React.ReactNode)
   align?: 'left' | 'right'
   className?: string
 }
@@ -49,7 +49,7 @@ export default function DataTable<T>({ title, badge, columns, rows, keyFn, empty
                     key={ci}
                     className={`px-5 py-3 text-[12.5px] ${col.align === 'right' ? 'text-right font-mono text-nl-700' : 'text-nl-text'} ${col.className ?? ''}`}
                   >
-                    {typeof col.accessor === 'function' ? col.accessor(row) : (row[col.accessor] as React.ReactNode)}
+                    {typeof col.accessor === 'function' ? col.accessor(row, i) : (row[col.accessor] as React.ReactNode)}
                   </td>
                 ))}
               </tr>
