@@ -78,19 +78,9 @@ export const isVenta       = (row: Row) => getTipo(row) === 'Ingreso' && getCuen
 export const isOtroIngreso = (row: Row) => getTipo(row) === 'Ingreso' && getCuenta(row) !== '5101-01'
 export const isCosto       = (row: Row) => getTipo(row) === 'Costo'
 
-export function isRetiroDirectores(row: Row): boolean {
-  // Cuenta 4401-02 = Remuneraciones Directores (exclusión explícita por cuenta)
-  if (getCuenta(row) === '4401-02') return true
-  const desc = getDesc(row).toLowerCase()
-  const clas = getClasGasto(row).toLowerCase()
-  return desc.includes('retiro director') || clas.includes('retiro director')
-}
-
-// Selector explícito para la cuenta 4401-02 (Remuneraciones Directores)
-// Tipo fue cambiado de 'Gasto' a 'Remun' en la fuente de datos
-export const isRemDirectores = (row: Row) => getTipo(row) === 'Remun' && getCuenta(row) === '4401-02'
-
-export const isGasto = (row: Row) => getTipo(row) === 'Gasto' && !isRetiroDirectores(row)
+// Tipo='Remun' en la fuente de datos → separado de 'Gasto', no necesita exclusión manual
+export const isRemDirectores = (row: Row) => getTipo(row) === 'Remun'
+export const isGasto         = (row: Row) => getTipo(row) === 'Gasto'
 
 export function filterByYear(rows: Row[], year: string | null): Row[] {
   if (!year || year === 'all') return rows
