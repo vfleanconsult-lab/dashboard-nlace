@@ -22,6 +22,12 @@ function deltaPct(a: number, b: number): number | null {
   return (a - b) / Math.abs(b) * 100
 }
 
+// For margin KPIs (stored as ratios 0–1): returns absolute difference in percentage points.
+// e.g. margenOp 0.25 vs 0.20 → +5.0 pp, not +25% (relative)
+function deltaPP(a: number, b: number): number {
+  return (a - b) * 100
+}
+
 export default function Resumen() {
   const { rows: allRows, years, loading, error, loadedAt } = useData()
   const { initialize } = useFilterContext()
@@ -78,13 +84,13 @@ export default function Resumen() {
             <KpiCard label="Ventas YTD" value={D.formatCLP(kpis.ventas, true)} sub={isCompare ? undefined : D.formatCLP(kpis.ventas)} accent="primary" trend={!isCompare ? 'up' : undefined} icon={TrendingUp}
               compare={kpisB ? { value: D.formatCLP(kpisB.ventas, true), delta: deltaPct(kpis.ventas, kpisB.ventas) } : undefined} />
             <KpiCard label="Margen Operacional" value={D.formatPct(kpis.margenOp)} sub={isCompare ? undefined : `Util. Op.: ${D.formatCLP(kpis.utilOp, true)}`} accent={margenAccent} icon={Percent}
-              compare={kpisB ? { value: D.formatPct(kpisB.margenOp), delta: deltaPct(kpis.margenOp, kpisB.margenOp) } : undefined} />
+              compare={kpisB ? { value: D.formatPct(kpisB.margenOp), delta: deltaPP(kpis.margenOp, kpisB.margenOp) } : undefined} />
             <KpiCard label="Otros Ingresos YTD" value={D.formatCLP(kpis.otrosIngresos, true)} sub={isCompare ? undefined : D.formatCLP(kpis.otrosIngresos)} accent="neutral" icon={PlusCircle}
               compare={kpisB ? { value: D.formatCLP(kpisB.otrosIngresos, true), delta: deltaPct(kpis.otrosIngresos, kpisB.otrosIngresos) } : undefined} />
             <KpiCard label="Costos YTD" value={D.formatCLP(kpis.costos, true)} sub={isCompare ? undefined : `M. Bruto: ${D.formatPct(kpis.margenBruto)}`} accent="accent" trend={!isCompare ? 'down' : undefined} icon={ShoppingCart}
-              compare={kpisB ? { value: D.formatCLP(kpisB.costos, true), delta: deltaPct(kpis.costos, kpisB.costos) } : undefined} />
+              compare={kpisB ? { value: D.formatCLP(kpisB.costos, true), delta: deltaPct(kpis.costos, kpisB.costos), invert: true } : undefined} />
             <KpiCard label="Gastos Op. YTD" value={D.formatCLP(kpis.gastos, true)} sub={isCompare ? undefined : `${D.formatPct(kpis.ventas > 0 ? kpis.gastos / kpis.ventas : 0)} sobre ventas`} accent="danger" trend={!isCompare ? 'down' : undefined} icon={Wallet}
-              compare={kpisB ? { value: D.formatCLP(kpisB.gastos, true), delta: deltaPct(kpis.gastos, kpisB.gastos) } : undefined} />
+              compare={kpisB ? { value: D.formatCLP(kpisB.gastos, true), delta: deltaPct(kpis.gastos, kpisB.gastos), invert: true } : undefined} />
           </div>
         </div>
 

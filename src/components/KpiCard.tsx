@@ -7,7 +7,7 @@ interface KpiCardProps {
   accent?: 'primary' | 'success' | 'danger' | 'accent' | 'amber' | 'neutral'
   trend?: 'up' | 'down' | 'neutral'
   icon?: LucideIcon
-  compare?: { value: string; delta: number | null }
+  compare?: { value: string; delta: number | null; invert?: boolean }
   className?: string
 }
 
@@ -20,11 +20,12 @@ const accentMap = {
   neutral: { dot: 'bg-nl-400',          value: 'text-nl-700',          strip: 'bg-nl-400',          icon: 'text-nl-500 bg-nl-bg' },
 }
 
-function DeltaBadge({ delta }: { delta: number }) {
-  const positive = delta >= 0
+function DeltaBadge({ delta, invert = false }: { delta: number; invert?: boolean }) {
+  const up = delta >= 0
+  const good = invert ? !up : up
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-body font-semibold tabular-nums px-1.5 py-0.5 rounded-[6px] ${positive ? 'text-nl-success-text bg-nl-success-bg' : 'text-nl-danger bg-nl-danger-8'}`}>
-      {positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}%
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-body font-semibold tabular-nums px-1.5 py-0.5 rounded-[6px] ${good ? 'text-nl-success-text bg-nl-success-bg' : 'text-nl-danger bg-nl-danger-8'}`}>
+      {up ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}%
     </span>
   )
 }
@@ -62,7 +63,7 @@ export default function KpiCard({ label, value, sub, accent = 'neutral', trend, 
             {compare.delta !== null && (
               <div className="flex items-center gap-1.5 pt-1 border-t border-nl-border-soft">
                 <span className="text-[10px] font-mono text-nl-400">Variación:</span>
-                <DeltaBadge delta={compare.delta} />
+                <DeltaBadge delta={compare.delta} invert={compare.invert} />
               </div>
             )}
           </div>
