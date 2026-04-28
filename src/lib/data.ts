@@ -87,7 +87,8 @@ export function isRetiroDirectores(row: Row): boolean {
 }
 
 // Selector explícito para la cuenta 4401-02 (Remuneraciones Directores)
-export const isRemDirectores = (row: Row) => getTipo(row) === 'Gasto' && getCuenta(row) === '4401-02'
+// Tipo fue cambiado de 'Gasto' a 'Remun' en la fuente de datos
+export const isRemDirectores = (row: Row) => getTipo(row) === 'Remun' && getCuenta(row) === '4401-02'
 
 export const isGasto = (row: Row) => getTipo(row) === 'Gasto' && !isRetiroDirectores(row)
 
@@ -165,7 +166,7 @@ export function loadData(
     complete(result) {
       state.rows = result.data.filter(r => {
         const t = getTipo(r)
-        return t === 'Ingreso' || t === 'Costo' || t === 'Gasto'
+        return t === 'Ingreso' || t === 'Costo' || t === 'Gasto' || t === 'Remun'
       })
       const ym: Record<string, boolean> = {}
       state.rows.forEach(r => { const y = getYear(r); if (y) ym[y] = true })
