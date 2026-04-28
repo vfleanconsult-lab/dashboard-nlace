@@ -234,7 +234,6 @@ export function calcDSO(rows: Row[]): number | null {
 }
 
 export function calcDSOByCliente(rows: Row[]): DSOCliente[] {
-  const today = new Date()
   type Entry = { diasPagado: number; countPagado: number; montoPagado: number; montoPendiente: number; total: number }
   const map: Record<string, Entry> = {}
 
