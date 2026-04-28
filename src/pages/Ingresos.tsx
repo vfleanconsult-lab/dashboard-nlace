@@ -9,12 +9,9 @@ import PageHeader from '../components/PageHeader'
 import KpiCard from '../components/KpiCard'
 import SectionLabel from '../components/SectionLabel'
 import ChartCard from '../components/ChartCard'
-import DataTable from '../components/DataTable'
-import RankBadge from '../components/RankBadge'
-import ProgressBar from '../components/ProgressBar'
 import { LoadingState, ErrorState } from '../components/LoadingState'
-import NlaceAreaChart from '../components/charts/AreaChart'
-import { COLORS } from '../components/charts/theme'
+import BarChartV from '../components/charts/BarChartV'
+import { COLORS, PALETTE } from '../components/charts/theme'
 
 export default function Ingresos() {
   const { rows: allRows, years, loading, error, loadedAt } = useData()
@@ -39,13 +36,6 @@ export default function Ingresos() {
     otros:  otrosByM[m]  ?? 0,
   }))
 
-  const otrosMap: Record<string, number> = {}
-  rows.filter(D.isOtroIngreso).forEach(r => {
-    const key = D.getDesc(r) || D.getCuenta(r) || 'Sin descripción'
-    otrosMap[key] = (otrosMap[key] ?? 0) + D.getMonto(r)
-  })
-  const otrosEntries = Object.entries(otrosMap).sort((a, b) => b[1] - a[1]).slice(0, 10)
-
   return (
     <>
       <PageHeader title="Ingresos" subtitle="Ventas y otros ingresos · YTD" years={years} allMonths={allMonths} loadedAt={loadedAt} />
@@ -65,59 +55,30 @@ export default function Ingresos() {
           <SectionLabel>Evolución mensual</SectionLabel>
           <div className="grid grid-cols-2 gap-4">
             <ChartCard title="Ventas Mensuales" subtitle="Cuenta 5101-01 · Tipo = Ingreso" height={260}>
-              <NlaceAreaChart
+              <BarChartV
                 data={chartData}
-                series={[{ key: 'ventas', label: 'Ventas', color: COLORS.primary }]}
+                datasets={[{ key: 'ventas', label: 'Ventas', color: COLORS.primary }]}
               />
             </ChartCard>
             <ChartCard
               title="Ventas vs Otros Ingresos"
-              subtitle="Comparativa mensual acumulada"
+              subtitle="Composición mensual"
               height={260}
               legend={[
                 { color: COLORS.primary, label: 'Ventas' },
-                { color: COLORS.accent,  label: 'Otros' },
+                { color: PALETTE[1],     label: 'Otros' },
               ]}
             >
-              <NlaceAreaChart
+              <BarChartV
                 data={chartData}
-                series={[
-                  { key: 'ventas', label: 'Ventas', color: COLORS.primary },
-                  { key: 'otros',  label: 'Otros Ingresos', color: COLORS.accent },
+                datasets={[
+                  { key: 'ventas', label: 'Ventas',          color: COLORS.primary },
+                  { key: 'otros',  label: 'Otros Ingresos',  color: PALETTE[1] },
                 ]}
                 stacked
               />
             </ChartCard>
           </div>
-        </div>
-
-        <div>
-          <SectionLabel>Desglose otros ingresos YTD</SectionLabel>
-          <DataTable
-            title="Ranking por cuenta / descripción"
-            badge={`${otrosEntries.length} cuentas`}
-            columns={[
-              { header: '#', accessor: (_, i) => <RankBadge n={i} /> },
-              { header: 'Descripción / Cuenta', accessor: ([desc]) => <span className="font-medium text-nl-text">{desc}</span> },
-              { header: 'Monto YTD', accessor: ([, monto]) => D.formatCLP(monto as number), align: 'right' },
-              {
-                header: '% del Total',
-                align: 'right',
-                accessor: ([, monto]) => {
-                  const pct = otrosIng > 0 ? (monto as number) / otrosIng * 100 : 0
-                  return (
-                    <div>
-                      <span className="font-mono text-[12px] text-nl-700">{pct.toFixed(1)}%</span>
-                      <ProgressBar pct={pct} color={COLORS.primary} />
-                    </div>
-                  )
-                },
-              },
-            ]}
-            rows={otrosEntries as [string, number][]}
-            keyFn={([desc]) => desc}
-            emptyText="Sin otros ingresos en el período"
-          />
         </div>
 
       </div>

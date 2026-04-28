@@ -61,7 +61,18 @@ export default function Resumen() {
       })
     : []
 
-  const margenAccent = kpis.margenOp >= 0.1 ? 'success' : kpis.margenOp >= 0 ? 'amber' : 'danger'
+  const margenAccent = kpis.margenBruto >= 0.3 ? 'success' : kpis.margenBruto >= 0.1 ? 'amber' : 'danger'
+
+  // PE simplificado por mes: PE = Gastos_fijos / Margen_Bruto_%
+  // Supuesto: Costos = variables, Gastos Op. = fijos
+  const peByM: Record<string, number> = {}
+  months.forEach(m => {
+    const v = ventasByM[m] ?? 0
+    const c = costosByM[m] ?? 0
+    const g = gastosByM[m] ?? 0
+    const cmr = v > 0 ? (v - c) / v : 0
+    peByM[m] = cmr > 0 ? g / cmr : 0
+  })
 
   return (
     <>
@@ -83,8 +94,8 @@ export default function Resumen() {
           <div className="grid grid-cols-5 gap-3">
             <KpiCard label="Ventas YTD" value={D.formatCLP(kpis.ventas, true)} sub={isCompare ? undefined : D.formatCLP(kpis.ventas)} accent="primary" trend={!isCompare ? 'up' : undefined} icon={TrendingUp}
               compare={kpisB ? { value: D.formatCLP(kpisB.ventas, true), delta: deltaPct(kpis.ventas, kpisB.ventas) } : undefined} />
-            <KpiCard label="Margen Operacional" value={D.formatPct(kpis.margenOp)} sub={isCompare ? undefined : `Util. Op.: ${D.formatCLP(kpis.utilOp, true)}`} accent={margenAccent} icon={Percent}
-              compare={kpisB ? { value: D.formatPct(kpisB.margenOp), delta: deltaPP(kpis.margenOp, kpisB.margenOp) } : undefined} />
+            <KpiCard label="Margen Bruto" value={D.formatPct(kpis.margenBruto)} sub={isCompare ? undefined : `Util. Bruta: ${D.formatCLP(kpis.utilBruta, true)}`} accent={margenAccent} icon={Percent}
+              compare={kpisB ? { value: D.formatPct(kpisB.margenBruto), delta: deltaPP(kpis.margenBruto, kpisB.margenBruto) } : undefined} />
             <KpiCard label="Otros Ingresos YTD" value={D.formatCLP(kpis.otrosIngresos, true)} sub={isCompare ? undefined : D.formatCLP(kpis.otrosIngresos)} accent="neutral" icon={PlusCircle}
               compare={kpisB ? { value: D.formatCLP(kpisB.otrosIngresos, true), delta: deltaPct(kpis.otrosIngresos, kpisB.otrosIngresos) } : undefined} />
             <KpiCard label="Costos YTD" value={D.formatCLP(kpis.costos, true)} sub={isCompare ? undefined : `M. Bruto: ${D.formatPct(kpis.margenBruto)}`} accent="accent" trend={!isCompare ? 'down' : undefined} icon={ShoppingCart}
@@ -116,7 +127,7 @@ export default function Resumen() {
             <div className="bg-nl-white rounded-card border border-nl-border-soft shadow-card overflow-hidden">
               <div className="flex items-center justify-between px-6 py-4 border-b border-nl-border-soft">
                 <span className="font-display font-bold text-[14px] text-nl-text tracking-tight">Análisis mensual de cobertura</span>
-                <span className="text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-200 rounded-pill px-3 py-1">Parametrizable</span>
+                <span className="text-[10px] font-mono text-nl-400 bg-nl-bg border border-nl-border-soft rounded-pill px-3 py-1">Costos = variables · Gastos Op. = fijos</span>
               </div>
               <table className="w-full border-collapse">
                 <thead>
@@ -127,15 +138,28 @@ export default function Resumen() {
                   </tr>
                 </thead>
                 <tbody>
-                  {months.map((m, i) => (
-                    <tr key={m} className="border-b border-nl-border-soft last:border-0 hover:bg-nl-bg/60 transition-colors duration-[150ms]">
-                      <td className="px-5 py-3 text-[13px] font-medium text-nl-text">{chartData[i]?.label}</td>
-                      <td className="px-5 py-3 text-right font-mono text-[12px] text-nl-700">{D.formatCLP(ventasByM[m] ?? 0)}</td>
-                      <td className="px-5 py-3 text-right font-mono text-[12px] text-nl-400">— (parametrizar)</td>
-                      <td className="px-5 py-3 text-right font-mono text-[12px] text-nl-400">—</td>
-                      <td className="px-5 py-3 text-right"><span className="text-[10px] font-mono text-nl-400 bg-nl-bg border border-nl-border-ui rounded-pill px-2 py-0.5">Sin PE</span></td>
-                    </tr>
-                  ))}
+                  {months.map((m, i) => {
+                    const v   = ventasByM[m] ?? 0
+                    const pe  = peByM[m] ?? 0
+                    const gap = pe > 0 ? v - pe : null
+                    const cob = pe > 0 && v > 0 ? v / pe : null
+                    return (
+                      <tr key={m} className="border-b border-nl-border-soft last:border-0 hover:bg-nl-bg/60 transition-colors duration-[150ms]">
+                        <td className="px-5 py-3 text-[13px] font-medium text-nl-text">{chartData[i]?.label}</td>
+                        <td className="px-5 py-3 text-right font-mono text-[12px] text-nl-700">{D.formatCLP(v)}</td>
+                        <td className="px-5 py-3 text-right font-mono text-[12px] text-nl-700">{pe > 0 ? D.formatCLP(pe) : '—'}</td>
+                        <td className={`px-5 py-3 text-right font-mono text-[12px] font-semibold ${gap === null ? 'text-nl-400' : gap >= 0 ? 'text-nl-success-dark' : 'text-nl-danger'}`}>
+                          {gap !== null ? D.formatCLP(gap) : '—'}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          {cob !== null
+                            ? <span className={`text-[10px] font-mono font-medium rounded-pill px-2 py-0.5 border ${cob >= 1 ? 'text-nl-success-text bg-nl-success-bg border-nl-success-dark/20' : 'text-nl-danger bg-nl-danger-8 border-nl-danger/20'}`}>{(cob * 100).toFixed(1)}%</span>
+                            : <span className="text-[10px] font-mono text-nl-400 bg-nl-bg border border-nl-border-ui rounded-pill px-2 py-0.5">Sin datos</span>
+                          }
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

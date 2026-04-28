@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ShoppingCart, Percent, PackageOpen, Layers } from 'lucide-react'
+import { ShoppingCart, Percent, TrendingDown } from 'lucide-react'
 import * as D from '../lib/data'
 import { useData } from '../lib/useData'
 import { useFilter } from '../lib/useFilter'
@@ -34,10 +34,7 @@ export default function Costos() {
   const clasifMap     = D.groupCostosByClasif(rows)
   const clasifEntries = Object.entries(clasifMap).sort((a, b) => b[1] - a[1])
 
-  const costoVentaKeys  = clasifEntries.filter(([k]) => /venta|directo|producci[oó]n/i.test(k))
-  const costoExplotKeys = clasifEntries.filter(([k]) => !costoVentaKeys.find(cv => cv[0] === k))
-  const costoVenta      = costoVentaKeys.reduce((s, [, v]) => s + v, 0)
-  const costoExplot     = costoExplotKeys.reduce((s, [, v]) => s + v, 0)
+  const pctCostoVentas = ventas > 0 ? costos / ventas : 0
 
   // Stacked bar: top 5 clasificaciones
   const topClasif  = clasifEntries.slice(0, 5)
@@ -75,11 +72,10 @@ export default function Costos() {
 
         <div>
           <SectionLabel>{label} · Estructura de costos</SectionLabel>
-          <div className="grid grid-cols-4 gap-4">
-            <KpiCard label="Costos Totales YTD"  value={D.formatCLP(costos, true)}     sub={D.formatCLP(costos)}                                               accent="accent"  trend="down" icon={ShoppingCart} />
-            <KpiCard label="Margen Bruto"         value={D.formatPct(margenBruto)}      sub={`Utilidad bruta: ${D.formatCLP(ventas - costos, true)}`}          accent={margenAccent}         icon={Percent} />
-            <KpiCard label="Costo de Venta Est."  value={D.formatCLP(costoVenta, true)} sub={`${costos > 0 ? (costoVenta / costos * 100).toFixed(1) : 0}% del total`} accent="primary" icon={PackageOpen} />
-            <KpiCard label="Costo Explotación"    value={D.formatCLP(costoExplot, true)} sub={`${costos > 0 ? (costoExplot / costos * 100).toFixed(1) : 0}% del total`} accent="neutral" icon={Layers} />
+          <div className="grid grid-cols-3 gap-4">
+            <KpiCard label="Costos Totales YTD" value={D.formatCLP(costos, true)}   sub={D.formatCLP(costos)}                                      accent="accent"      trend="down" icon={ShoppingCart} />
+            <KpiCard label="Margen Bruto"        value={D.formatPct(margenBruto)}   sub={`Util. bruta: ${D.formatCLP(ventas - costos, true)}`}      accent={margenAccent}              icon={Percent} />
+            <KpiCard label="Costos / Ventas"     value={D.formatPct(pctCostoVentas)} sub={`Referencia saludable: <50%`}                             accent={pctCostoVentas < 0.5 ? 'success' : pctCostoVentas < 0.7 ? 'amber' : 'danger'} icon={TrendingDown} />
           </div>
         </div>
 

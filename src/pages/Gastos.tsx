@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Receipt, Percent, Tag } from 'lucide-react'
+import { Receipt, Percent, UserX } from 'lucide-react'
 import * as D from '../lib/data'
 import { useData } from '../lib/useData'
 import { useFilter } from '../lib/useFilter'
@@ -30,7 +30,7 @@ export default function Gastos() {
 
   const ventas        = D.sumMonto(rows.filter(D.isVenta))
   const gastos        = D.sumMonto(rows.filter(D.isGasto))
-  const retirosExcl   = D.sumMonto(rows.filter(r => D.getTipo(r) === 'Gasto' && D.isRetiroDirectores(r)))
+  const remDirectores = D.sumMonto(rows.filter(D.isRemDirectores))
   const clasifMap     = D.groupGastosByClasif(rows)
   const clasifEntries = Object.entries(clasifMap).sort((a, b) => b[1] - a[1])
   const gastosByM     = D.groupByMonth(rows, D.isGasto)
@@ -51,7 +51,7 @@ export default function Gastos() {
           <div className="grid grid-cols-3 gap-4">
             <KpiCard label="Gastos Operacionales YTD" value={D.formatCLP(gastos, true)} sub={D.formatCLP(gastos)}      accent="danger"  trend="down" icon={Receipt} />
             <KpiCard label="% sobre Ventas"           value={D.formatPct(pctVentas)}    sub="Referencia saludable: <30%" accent={pctAccent}             icon={Percent} />
-            <KpiCard label="Categorías activas"       value={clasifEntries.length.toString()} sub={`Período: ${label}`} accent="neutral" icon={Tag} />
+            <KpiCard label="Rem. Directores (4401-02)" value={D.formatCLP(remDirectores, true)} sub={remDirectores > 0 ? D.formatCLP(remDirectores) : 'Sin movimientos en el período'} accent="neutral" icon={UserX} />
           </div>
         </div>
 
@@ -105,19 +105,6 @@ export default function Gastos() {
           />
         </div>
 
-        {retirosExcl > 0 && (
-          <div>
-            <SectionLabel>Excluidos del análisis</SectionLabel>
-            <div className="bg-nl-white rounded-card border border-nl-border-soft shadow-card p-5 max-w-xs">
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-nl-400" />
-                <span className="text-[10px] font-mono text-nl-400 uppercase tracking-[0.1em]">Retiro de Directores (excluido)</span>
-              </div>
-              <div className="font-body text-[20px] font-bold tabular-nums text-nl-700">{D.formatCLP(retirosExcl, true)}</div>
-              <div className="text-[11px] font-mono text-nl-400 mt-1">No incluido en gastos operacionales por regla de negocio</div>
-            </div>
-          </div>
-        )}
 
       </div>
     </>
