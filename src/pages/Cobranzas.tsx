@@ -218,6 +218,19 @@ export default function Cobranzas() {
                   ),
                 },
                 {
+                  header: 'Días s/venc.', align: 'right',
+                  accessor: p => {
+                    if (p.diasSobreVenc === null) return <span className="font-mono text-[12px] text-nl-400">—</span>
+                    const d = Math.round(p.diasSobreVenc)
+                    const colorClass = d <= 0 ? 'text-nl-success-dark' : d <= 10 ? 'text-amber-700' : d <= 20 ? 'text-orange-700' : 'text-nl-danger'
+                    return (
+                      <span className={`font-mono text-[12px] font-semibold ${colorClass}`}>
+                        {d > 0 ? `+${d}` : d}d
+                      </span>
+                    )
+                  },
+                },
+                {
                   header: 'Estado', align: 'right',
                   accessor: p => <SemaforoBadge {...semaforoDso(p.dsoDias)} />,
                 },
