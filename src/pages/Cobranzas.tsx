@@ -17,10 +17,28 @@ import LineChartR from '../components/charts/LineChartR'
 import BarChartV from '../components/charts/BarChartV'
 import { COLORS } from '../components/charts/theme'
 
+function estadoDso(dias: number): { label: string; className: string } {
+  if (dias <= 30) return { label: 'Saludable', className: 'text-nl-success-text bg-nl-success-bg border-nl-success-dark/20' }
+  if (dias <= 60) return { label: 'Atención',  className: 'text-amber-700 bg-amber-50 border-amber-200' }
+  return             { label: 'Crítico',   className: 'text-nl-danger bg-nl-danger-8 border-nl-danger/20' }
+}
+
 function DsoBadge({ dias }: { dias: number }) {
-  if (dias <= 30) return <span className="inline-block text-[10px] font-mono font-medium text-nl-success-text bg-nl-success-bg border border-nl-success-dark/20 rounded-pill px-2.5 py-0.5 cursor-default">{dias.toFixed(0)}d · Saludable</span>
-  if (dias <= 60) return <span className="inline-block text-[10px] font-mono font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-pill px-2.5 py-0.5 cursor-default">{dias.toFixed(0)}d · Alerta</span>
-  return               <span className="inline-block text-[10px] font-mono font-medium text-nl-danger bg-nl-danger-8 border border-nl-danger/20 rounded-pill px-2.5 py-0.5 cursor-default">{dias.toFixed(0)}d · Crítico</span>
+  const e = estadoDso(dias)
+  return (
+    <span className={`inline-block text-[10px] font-mono font-medium border rounded-pill px-2.5 py-0.5 cursor-default ${e.className}`}>
+      {dias.toFixed(0)}d
+    </span>
+  )
+}
+
+function EstadoBadge({ dias }: { dias: number }) {
+  const e = estadoDso(dias)
+  return (
+    <span className={`inline-block text-[10px] font-mono font-medium border rounded-pill px-2.5 py-0.5 cursor-default ${e.className}`}>
+      {e.label}
+    </span>
+  )
 }
 
 const TRAMOS = [
@@ -43,12 +61,13 @@ export default function Cobranzas() {
   if (loading) return <LoadingState />
   if (error)   return <ErrorState />
 
-  const dsoGlobal       = D.calcDSO(rows)
-  const dsoClientes     = D.calcDSOByCliente(rows)
-  const ventasTotal     = D.sumMonto(rows.filter(D.isVenta))
-  const montoPendiente  = dsoClientes.reduce((s, c) => s + c.montoPendiente, 0)
-  const tieneEmision    = rows.some(r => D.isVenta(r) && D.getFechaEmision(r))
+  const dsoGlobal      = D.calcDSO(rows)
+  const dsoClientes    = D.calcDSOByCliente(rows)
+  const ventasTotal    = D.sumMonto(rows.filter(D.isVenta))
+  const montoPendiente = dsoClientes.reduce((s, c) => s + c.montoPendiente, 0)
+  const tieneEmision   = rows.some(r => D.isVenta(r) && D.getFechaEmision(r))
 
+  // Solo filas con Fecha_Pago para el gráfico mensual
   const lineData = months.map(m => {
     const dso = D.calcDSO(D.filterByMonth(rows, m))
     return { label: D.monthLabel(m), value: dso !== null ? parseFloat(dso.toFixed(1)) : null }
@@ -60,13 +79,13 @@ export default function Cobranzas() {
     color:    i < 2 ? COLORS.success : i < 4 ? COLORS.amber : COLORS.accent,
   }))
 
-  const dsoAccent = dsoGlobal === null ? 'neutral' : dsoGlobal <= 30 ? 'success' : dsoGlobal <= 60 ? 'amber' : 'danger'
-  const critCount = dsoClientes.filter(c => c.montoPendiente > 0).length
-  const tasaPago  = ventasTotal > 0 ? (ventasTotal - montoPendiente) / ventasTotal : null
+  const dsoAccent  = dsoGlobal === null ? 'neutral' : dsoGlobal <= 30 ? 'success' : dsoGlobal <= 60 ? 'amber' : 'danger'
+  const critCount  = dsoClientes.filter(c => c.montoPendiente > 0).length
+  const tasaPago   = ventasTotal > 0 ? (ventasTotal - montoPendiente) / ventasTotal : null
 
   return (
     <>
-      <PageHeader title="Cobranzas" subtitle="DSO · Días promedio de cobro" years={years} allMonths={allMonths} loadedAt={loadedAt} />
+      <PageHeader title="Cobranzas" subtitle="DSO · Días promedio de cobro (facturas pagadas)" years={years} allMonths={allMonths} loadedAt={loadedAt} />
 
       <div className="p-8 space-y-8">
 
@@ -83,7 +102,7 @@ export default function Cobranzas() {
             <KpiCard
               label="DSO Global"
               value={dsoGlobal !== null ? D.formatDays(dsoGlobal) : '—'}
-              sub={dsoGlobal !== null ? (dsoGlobal <= 30 ? 'Saludable' : dsoGlobal <= 60 ? 'Alerta — revisar' : 'Crítico — acción requerida') : 'Sin Fecha_emision en el período'}
+              sub={dsoGlobal !== null ? (dsoGlobal <= 30 ? 'Saludable' : dsoGlobal <= 60 ? 'Atención — revisar' : 'Crítico — acción requerida') : 'Sin facturas pagadas en el período'}
               accent={dsoAccent}
               icon={Clock}
             />
@@ -117,13 +136,14 @@ export default function Cobranzas() {
             <div className="col-span-2">
               <ChartCard
                 title="Días Promedio de Cobro (DSO)"
-                subtitle="Pagadas: usa Fecha_Pago · Pendientes: usa hoy como referencia"
+                subtitle="Solo facturas pagadas · promedio de Fecha_Pago − Fecha_Emision"
                 height={260}
               >
                 {lineData.some(d => d.value !== null) ? (
                   <LineChartR
                     data={lineData}
                     color={COLORS.primary}
+                    yDomainMin={0}
                     yTickFormatter={v => `${v}d`}
                     referenceLines={[
                       { y: 30, label: '30d', color: COLORS.success },
@@ -131,7 +151,7 @@ export default function Cobranzas() {
                     ]}
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full text-[12px] font-mono text-nl-400">Sin datos de fechas para calcular DSO mensual</div>
+                  <div className="flex items-center justify-center h-full text-[12px] font-mono text-nl-400">Sin facturas pagadas con fechas en el período</div>
                 )}
               </ChartCard>
             </div>
@@ -156,13 +176,13 @@ export default function Cobranzas() {
             badge={`${dsoClientes.length} clientes`}
             columns={[
               { header: '#', accessor: (_, i) => <RankBadge n={i} /> },
-              { header: 'Cliente / Descripción', accessor: c => <span className="font-medium text-nl-text">{c.cliente}</span> },
+              { header: 'Cliente', accessor: c => <span className="font-medium text-nl-text">{c.cliente}</span> },
               {
-                header: 'Monto Total', align: 'right',
+                header: 'Monto Total Facturado', align: 'right',
                 accessor: c => <span className="font-mono text-[12px] text-nl-700">{D.formatCLP(c.monto)}</span>,
               },
               {
-                header: 'Pagado', align: 'right',
+                header: 'Monto Cobrado', align: 'right',
                 accessor: c => (
                   <div>
                     <span className="font-mono text-[12px] text-nl-success-dark">{D.formatCLP(c.montoPagado)}</span>
@@ -171,7 +191,7 @@ export default function Cobranzas() {
                 ),
               },
               {
-                header: 'Pendiente', align: 'right',
+                header: 'Monto Pendiente', align: 'right',
                 accessor: c => (
                   <span className={`font-mono text-[12px] font-semibold ${c.montoPendiente > 0 ? 'text-nl-danger' : 'text-nl-400'}`}>
                     {c.montoPendiente > 0 ? D.formatCLP(c.montoPendiente) : '—'}
@@ -179,23 +199,29 @@ export default function Cobranzas() {
                 ),
               },
               {
+                header: 'Fact. Totales', align: 'right',
+                accessor: c => <span className="font-mono text-[12px] text-nl-700">{c.transacciones}</span>,
+              },
+              {
                 header: 'Fact. Pagadas', align: 'right',
-                accessor: c => (
-                  <span className="font-mono text-[12px] text-nl-700">
-                    {c.transaccionesPagadas}/{c.transacciones}
-                  </span>
-                ),
+                accessor: c => <span className="font-mono text-[12px] text-nl-700">{c.transaccionesPagadas}</span>,
               },
               {
                 header: 'DSO Prom.', align: 'right',
-                accessor: c => c.dsoDias > 0
+                accessor: c => c.transaccionesPagadas > 0
                   ? <DsoBadge dias={c.dsoDias} />
                   : <span className="text-[10px] font-mono text-nl-400">Sin pagos</span>,
+              },
+              {
+                header: 'Estado', align: 'right',
+                accessor: c => c.transaccionesPagadas > 0
+                  ? <EstadoBadge dias={c.dsoDias} />
+                  : <span className="text-[10px] font-mono text-nl-400">—</span>,
               },
             ]}
             rows={dsoClientes}
             keyFn={c => c.cliente}
-            emptyText="Sin ventas con Fecha_emision en el período"
+            emptyText="Sin ventas en el período"
           />
         </div>
 

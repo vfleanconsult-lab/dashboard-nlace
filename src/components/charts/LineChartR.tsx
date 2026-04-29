@@ -11,15 +11,17 @@ interface Props {
   color?: string
   yTickFormatter?: (v: number) => string
   referenceLines?: { y: number; label: string; color: string }[]
+  yDomainMin?: number
 }
 
-export default function LineChartR({ data, color = COLORS.primary, yTickFormatter, referenceLines = [] }: Props) {
+export default function LineChartR({ data, color = COLORS.primary, yTickFormatter, referenceLines = [], yDomainMin = 0 }: Props) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} vertical={false} />
         <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 11 }} axisLine={false} tickLine={false} />
         <YAxis
+          domain={[yDomainMin, 'auto']}
           tick={{ fill: COLORS.text, fontSize: 11 }}
           axisLine={false}
           tickLine={false}
