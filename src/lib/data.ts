@@ -316,10 +316,11 @@ export interface TopPagador {
   cliente: string
   facturasPagadas: number
   dsoDias: number
+  diasSobreVenc: number | null // avg(Fecha_Pago - Fecha_Vencimiento); negative = paid early
 }
 
 export function calcTopPeoresPagadores(rows: Row[], limit = 10): TopPagador[] {
-  type Entry = { totalDias: number; count: number }
+  type Entry = { totalDias: number; count: number; totalSobreVenc: number; countVenc: number }
   const map: Record<string, Entry> = {}
 
   rows.filter(r => isVenta(r) && getFechaPago(r) && getFechaEmision(r)).forEach(r => {
@@ -328,13 +329,26 @@ export function calcTopPeoresPagadores(rows: Row[], limit = 10): TopPagador[] {
     const pago = parseDateCL(getFechaPago(r))
     if (!emi || !pago || pago < emi) return
     const dias = (pago.getTime() - emi.getTime()) / 86400000
-    if (!map[c]) map[c] = { totalDias: 0, count: 0 }
+    if (!map[c]) map[c] = { totalDias: 0, count: 0, totalSobreVenc: 0, countVenc: 0 }
     map[c].totalDias += dias
     map[c].count += 1
+    const vencStr = getFechaVencimiento(r)
+    if (vencStr) {
+      const venc = parseDateCL(vencStr)
+      if (venc) {
+        map[c].totalSobreVenc += (pago.getTime() - venc.getTime()) / 86400000
+        map[c].countVenc += 1
+      }
+    }
   })
 
   return Object.keys(map)
-    .map(c => ({ cliente: c, facturasPagadas: map[c].count, dsoDias: map[c].totalDias / map[c].count }))
+    .map(c => ({
+      cliente: c,
+      facturasPagadas: map[c].count,
+      dsoDias: map[c].totalDias / map[c].count,
+      diasSobreVenc: map[c].countVenc > 0 ? map[c].totalSobreVenc / map[c].countVenc : null,
+    }))
     .sort((a, b) => b.dsoDias - a.dsoDias)
     .slice(0, limit)
 }
