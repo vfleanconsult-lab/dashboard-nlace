@@ -182,14 +182,11 @@ export default function Cobranzas() {
                 },
                 {
                   header: 'Días', align: 'right',
-                  accessor: f => {
-                    const s = semaforo(f.diasVencida)
-                    return (
-                      <span className={`font-mono text-[12px] font-semibold ${f.diasVencida > 0 ? 'text-nl-success-dark' : f.diasVencida >= -15 ? 'text-amber-700' : f.diasVencida >= -30 ? 'text-orange-700' : 'text-nl-danger'}`}>
-                        {f.diasVencida > 0 ? `+${f.diasVencida}` : f.diasVencida}
-                      </span>
-                    )
-                  },
+                  accessor: f => (
+                    <span className={`font-mono text-[12px] font-semibold ${f.diasVencida > 0 ? 'text-nl-success-dark' : f.diasVencida >= -15 ? 'text-amber-700' : f.diasVencida >= -30 ? 'text-orange-700' : 'text-nl-danger'}`}>
+                      {f.diasVencida > 0 ? `+${f.diasVencida}` : f.diasVencida}
+                    </span>
+                  ),
                 },
                 {
                   header: 'Estado', align: 'right',
