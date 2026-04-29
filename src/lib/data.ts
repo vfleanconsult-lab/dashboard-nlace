@@ -52,6 +52,7 @@ export const getMesEco     = (row: Row) => (row['Mes_economico'] || '').trim()
 export const getAnoEco     = (row: Row) => (row['Ano_eco'] || '').trim()
 export const getFechaEmision = (row: Row) => (row['Fecha_emision'] || '').trim()
 export const getFechaPago    = (row: Row) => (row['Fecha_Pago'] || '').trim()
+export const getCliente      = (row: Row) => (row['Cliente'] || '').trim()
 
 export function getMonto(row: Row): number {
   const raw = String(row['monto_bruto'] || '0')
@@ -206,45 +207,46 @@ export function parseDateCL(str: string): Date | null {
 }
 
 export function calcDSO(rows: Row[]): number | null {
-  // Incluye TODAS las ventas con Fecha_emision.
-  // Pagadas: usa Fecha_Pago. Pendientes: usa fecha de hoy.
-  const today = new Date()
-  const conEmision = rows.filter(r => isVenta(r) && getFechaEmision(r))
-  if (conEmision.length === 0) return null
+  // Solo facturas pagadas: requiere Fecha_Pago y Fecha_emision
+  const pagadas = rows.filter(r => isVenta(r) && getFechaEmision(r) && getFechaPago(r))
+  if (pagadas.length === 0) return null
   let total = 0, count = 0
-  conEmision.forEach(r => {
-    const emi = parseDateCL(getFechaEmision(r))
-    if (!emi) return
-    const pagoStr = getFechaPago(r)
-    const pago    = pagoStr ? parseDateCL(pagoStr) : null
-    const ref     = (pago && pago >= emi) ? pago : today
-    total += (ref.getTime() - emi.getTime()) / 86400000
+  pagadas.forEach(r => {
+    const emi  = parseDateCL(getFechaEmision(r))
+    const pago = parseDateCL(getFechaPago(r))
+    if (!emi || !pago || pago < emi) return
+    total += (pago.getTime() - emi.getTime()) / 86400000
     count++
   })
   return count > 0 ? total / count : null
 }
 
 export function calcDSOByCliente(rows: Row[]): DSOCliente[] {
-  type Entry = { diasPagado: number; countPagado: number; montoPagado: number; montoPendiente: number; total: number }
+  type Entry = { diasPagado: number; countPagado: number; countTotal: number; montoPagado: number; montoPendiente: number; total: number }
   const map: Record<string, Entry> = {}
 
   rows
-    .filter(r => isVenta(r) && getFechaEmision(r))
+    .filter(r => isVenta(r))
     .forEach(r => {
-      const c   = getDesc(r) || getCuenta(r)
-      const emi = parseDateCL(getFechaEmision(r))
-      if (!emi) return
+      const c     = getCliente(r) || getDesc(r) || getCuenta(r)
+      if (!c) return
+      const monto = getMonto(r)
+      if (!map[c]) map[c] = { diasPagado: 0, countPagado: 0, countTotal: 0, montoPagado: 0, montoPendiente: 0, total: 0 }
+      map[c].total      += monto
+      map[c].countTotal += 1
       const pagoStr = getFechaPago(r)
-      const pago    = pagoStr ? parseDateCL(pagoStr) : null
-      const monto   = getMonto(r)
-      if (!map[c]) map[c] = { diasPagado: 0, countPagado: 0, montoPagado: 0, montoPendiente: 0, total: 0 }
-      map[c].total += monto
-      if (pago && pago >= emi) {
-        map[c].diasPagado  += (pago.getTime() - emi.getTime()) / 86400000
-        map[c].countPagado += 1
-        map[c].montoPagado += monto
+      if (pagoStr) {
+        map[c].montoPagado  += monto
+        map[c].countPagado  += 1
+        const emiStr = getFechaEmision(r)
+        if (emiStr) {
+          const emi  = parseDateCL(emiStr)
+          const pago = parseDateCL(pagoStr)
+          if (emi && pago && pago >= emi) {
+            map[c].diasPagado += (pago.getTime() - emi.getTime()) / 86400000
+          }
+        }
       } else {
-        // Sin fecha de pago: factura pendiente — acumula días hasta hoy
         map[c].montoPendiente += monto
       }
     })
@@ -253,13 +255,13 @@ export function calcDSOByCliente(rows: Row[]): DSOCliente[] {
     .map(c => {
       const e = map[c]
       return {
-        cliente:               c,
-        dsoDias:               e.countPagado > 0 ? e.diasPagado / e.countPagado : 0,
-        transacciones:         rows.filter(r => isVenta(r) && getFechaEmision(r) && (getDesc(r) || getCuenta(r)) === c).length,
-        transaccionesPagadas:  e.countPagado,
-        monto:                 e.total,
-        montoPagado:           e.montoPagado,
-        montoPendiente:        e.montoPendiente,
+        cliente:              c,
+        dsoDias:              e.countPagado > 0 ? e.diasPagado / e.countPagado : 0,
+        transacciones:        e.countTotal,
+        transaccionesPagadas: e.countPagado,
+        monto:                e.total,
+        montoPagado:          e.montoPagado,
+        montoPendiente:       e.montoPendiente,
       }
     })
     .filter(c => c.monto > 0)
