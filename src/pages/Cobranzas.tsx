@@ -89,6 +89,39 @@ export default function Cobranzas() {
 
       <div className="p-8 space-y-8">
 
+        {/* ── DIAGNÓSTICO TEMPORAL A173 ── */}
+        {(() => {
+          const a173rows = allRows.filter(r => D.isVenta(r) && (r['Cliente'] || '').includes('A173'))
+          const colNames = allRows.length > 0 ? Object.keys(allRows[0]).filter(k =>
+            k.toLowerCase().includes('fecha') || k.toLowerCase().includes('cliente') || k.toLowerCase().includes('estado')
+          ) : []
+          return (
+            <div className="p-4 rounded-card bg-blue-50 border border-blue-200 text-[11px] font-mono space-y-2">
+              <div className="font-bold text-blue-800">🔍 DEBUG A173 — {a173rows.length} filas encontradas</div>
+              <div className="text-blue-600">Columnas de fecha/cliente en CSV: {colNames.map(c => `"${c}"`).join(' | ')}</div>
+              {a173rows.map((r, i) => {
+                const emiRaw  = r['Fecha_emision'] ?? r['Fecha_Emision'] ?? '—AUSENTE—'
+                const pagoRaw = r['Fecha_Pago'] ?? '—AUSENTE—'
+                const vencRaw = r['Fecha_Vencimiento'] ?? '—AUSENTE—'
+                const emi  = D.parseDateCL(emiRaw)
+                const pago = D.parseDateCL(pagoRaw)
+                const dso  = emi && pago ? Math.round((pago.getTime() - emi.getTime()) / 86400000) : null
+                return (
+                  <div key={i} className="border-t border-blue-200 pt-2 text-blue-900">
+                    <span className="font-bold">Fila {i+1}:</span>{' '}
+                    Emision_raw="{emiRaw}" → parsed={emi ? emi.toISOString().split('T')[0] : 'null'}{' | '}
+                    Pago_raw="{pagoRaw}" → parsed={pago ? pago.toISOString().split('T')[0] : 'null'}{' | '}
+                    Venc_raw="{vencRaw}" → DSO={dso !== null ? `${dso} días` : 'n/a'}
+                  </div>
+                )
+              })}
+              {a173rows.length === 0 && (
+                <div className="text-red-700">No se encontró ninguna fila con Cliente que contenga "A173" en isVenta</div>
+              )}
+            </div>
+          )
+        })()}
+
         {!tieneEmision && (
           <div className="p-5 rounded-card bg-amber-50 border border-amber-200">
             <h3 className="font-display font-bold text-amber-800 mb-1 text-[14px]">Datos de fechas incompletos</h3>
