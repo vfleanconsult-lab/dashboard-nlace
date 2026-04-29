@@ -194,17 +194,15 @@ export function calcKPIs(rows: Row[]): KPIs {
 export function parseDateCL(str: string): Date | null {
   if (!str) return null
   const s = str.trim()
-  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-    const p = s.split('-')
-    return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]))
-  }
+  // DD/MM/YYYY [time] — CSV primary format; {1,2} handles non-zero-padded; no $ anchor ignores time component
+  const slashM = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (slashM) return new Date(+slashM[3], +slashM[2] - 1, +slashM[1])
+  // DD-MM-YYYY [time]
+  const dashM = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
+  if (dashM) return new Date(+dashM[3], +dashM[2] - 1, +dashM[1])
+  // YYYY-MM-DD (ISO)
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.substring(0, 10))
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
-    const p = s.split('/')
-    return new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]))
-  }
-  const dt = new Date(s)
-  return isNaN(dt.getTime()) ? null : dt
+  return null
 }
 
 export function calcDSO(rows: Row[]): number | null {
@@ -287,28 +285,6 @@ export function groupGastosByClasif(rows: Row[]): Record<string, number> {
   return map
 }
 
-// DSO Global: paid invoices (Fecha_Pago - Fecha_Emision) + unpaid invoices (Hoy - Fecha_Emision)
-export function calcDSOGlobal(rows: Row[], today?: Date): number | null {
-  const hoy = today ?? new Date()
-  const hoyMs = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
-  const dias: number[] = []
-
-  rows.filter(r => isVenta(r) && getFechaEmision(r)).forEach(r => {
-    const emi = parseDateCL(getFechaEmision(r))
-    if (!emi) return
-    const pagoStr = getFechaPago(r)
-    if (pagoStr) {
-      const pago = parseDateCL(pagoStr)
-      if (pago && pago >= emi) dias.push((pago.getTime() - emi.getTime()) / 86400000)
-    } else if (getEstado(r) === 'Emitido') {
-      const d = (hoyMs - emi.getTime()) / 86400000
-      if (d >= 0) dias.push(d)
-    }
-  })
-
-  return dias.length > 0 ? dias.reduce((s, d) => s + d, 0) / dias.length : null
-}
-
 export interface FacturaImpaga {
   cliente: string
   monto: number
@@ -321,7 +297,7 @@ export function calcFacturasImpagas(rows: Row[], today?: Date): FacturaImpaga[] 
   const hoyMs = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
 
   return rows
-    .filter(r => isVenta(r) && getEstado(r) === 'Emitido' && !getFechaPago(r))
+    .filter(r => isVenta(r) && !getFechaPago(r))
     .map(r => {
       const vencStr = getFechaVencimiento(r)
       const venc = vencStr ? parseDateCL(vencStr) : null

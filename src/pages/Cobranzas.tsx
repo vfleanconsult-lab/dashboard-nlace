@@ -59,10 +59,11 @@ export default function Cobranzas() {
   if (error)   return <ErrorState />
 
   // ── KPIs ──
-  const dsoGlobal      = D.calcDSOGlobal(rows)
+  const dsoGlobal      = D.calcDSO(rows)
   const ventasTotal    = D.sumMonto(rows.filter(D.isVenta))
-  const dsoClientes    = D.calcDSOByCliente(rows)
-  const montoPendiente = dsoClientes.reduce((s, c) => s + c.montoPendiente, 0)
+  const facturasImpagas   = D.calcFacturasImpagas(allRows)
+  const peoresPagadores   = D.calcTopPeoresPagadores(allRows)
+  const montoPendiente = facturasImpagas.reduce((s, f) => s + f.monto, 0)
   const tasaPago       = ventasTotal > 0 ? (ventasTotal - montoPendiente) / ventasTotal : null
   const tieneEmision   = rows.some(r => D.isVenta(r) && D.getFechaEmision(r))
 
@@ -81,10 +82,6 @@ export default function Cobranzas() {
     return { label: t.label, count, color: t.color }
   })
   const totalFactPagadas = histData.reduce((s, d) => s + d.count, 0)
-
-  // ── Tablas ──
-  const facturasImpagas   = D.calcFacturasImpagas(allRows)
-  const peoresPagadores   = D.calcTopPeoresPagadores(allRows)
 
   return (
     <>
@@ -127,7 +124,7 @@ export default function Cobranzas() {
             <KpiCard
               label="Ventas analizadas"
               value={D.formatCLP(ventasTotal, true)}
-              sub={`${dsoClientes.length} clientes identificados`}
+              sub={`${peoresPagadores.length} clientes analizados`}
               accent="primary"
               icon={DollarSign}
             />
