@@ -11,81 +11,84 @@ import SectionLabel from '../components/SectionLabel'
 import ChartCard from '../components/ChartCard'
 import DataTable from '../components/DataTable'
 import RankBadge from '../components/RankBadge'
-import ProgressBar from '../components/ProgressBar'
 import { LoadingState, ErrorState } from '../components/LoadingState'
-import LineChartR from '../components/charts/LineChartR'
 import BarChartV from '../components/charts/BarChartV'
-import { COLORS } from '../components/charts/theme'
 
-function estadoDso(dias: number): { label: string; className: string } {
-  if (dias <= 30) return { label: 'Saludable', className: 'text-nl-success-text bg-nl-success-bg border-nl-success-dark/20' }
-  if (dias <= 60) return { label: 'Atención',  className: 'text-amber-700 bg-amber-50 border-amber-200' }
-  return             { label: 'Crítico',   className: 'text-nl-danger bg-nl-danger-8 border-nl-danger/20' }
+// ─── semáforo facturas impagas (por días vencida) ───────────────────────────
+function semaforo(dias: number): { dot: string; label: string; badgeClass: string } {
+  if (dias > 0)   return { dot: 'bg-nl-success-dark',  label: 'Vigente',  badgeClass: 'text-nl-success-text bg-nl-success-bg border-nl-success-dark/20' }
+  if (dias >= -15) return { dot: 'bg-[#f59e0b]',        label: 'Vencida',  badgeClass: 'text-amber-700 bg-amber-50 border-amber-200' }
+  if (dias >= -30) return { dot: 'bg-[#f97316]',        label: 'Vencida',  badgeClass: 'text-orange-700 bg-orange-50 border-orange-200' }
+  return              { dot: 'bg-nl-danger',           label: 'Crítica',  badgeClass: 'text-nl-danger bg-nl-danger-8 border-nl-danger/20' }
 }
 
-function DsoBadge({ dias }: { dias: number }) {
-  const e = estadoDso(dias)
+// ─── semáforo peores pagadores (por DSO promedio) ────────────────────────────
+function semaforoDso(dias: number): { dot: string; label: string; badgeClass: string } {
+  if (dias <= 20)  return { dot: 'bg-nl-success-dark',  label: 'Rápido',   badgeClass: 'text-nl-success-text bg-nl-success-bg border-nl-success-dark/20' }
+  if (dias <= 30)  return { dot: 'bg-[#f59e0b]',        label: 'Normal',   badgeClass: 'text-amber-700 bg-amber-50 border-amber-200' }
+  if (dias <= 40)  return { dot: 'bg-[#f97316]',        label: 'Lento',    badgeClass: 'text-orange-700 bg-orange-50 border-orange-200' }
+  return               { dot: 'bg-nl-danger',           label: 'Crítico',  badgeClass: 'text-nl-danger bg-nl-danger-8 border-nl-danger/20' }
+}
+
+function SemaforoBadge({ dot, label, badgeClass }: ReturnType<typeof semaforo>) {
   return (
-    <span className={`inline-block text-[10px] font-mono font-medium border rounded-pill px-2.5 py-0.5 cursor-default ${e.className}`}>
-      {dias.toFixed(0)}d
+    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-medium border rounded-pill px-2.5 py-0.5 ${badgeClass}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+      {label}
     </span>
   )
 }
 
-function EstadoBadge({ dias }: { dias: number }) {
-  const e = estadoDso(dias)
-  return (
-    <span className={`inline-block text-[10px] font-mono font-medium border rounded-pill px-2.5 py-0.5 cursor-default ${e.className}`}>
-      {e.label}
-    </span>
-  )
-}
-
-const TRAMOS = [
-  { label: '≤ 15d',  min: 0,  max: 15  },
-  { label: '16–30d', min: 16, max: 30  },
-  { label: '31–45d', min: 31, max: 45  },
-  { label: '46–60d', min: 46, max: 60  },
-  { label: '61–90d', min: 61, max: 90  },
-  { label: '> 90d',  min: 91, max: Infinity },
+// ─── histograma: tramos de días de cobro (facturas pagadas) ──────────────────
+const TRAMOS_HIST = [
+  { label: '≤ 20 días',  min: 0,  max: 20,       color: '#22c55e' },
+  { label: '21–30 días', min: 21, max: 30,        color: '#f59e0b' },
+  { label: '31–40 días', min: 31, max: 40,        color: '#f97316' },
+  { label: '> 40 días',  min: 41, max: Infinity,  color: '#dc2626' },
 ]
 
 export default function Cobranzas() {
   const { rows: allRows, years, loading, error, loadedAt } = useData()
   const { initialize } = useFilterContext()
   const allMonths = getAllMonths(allRows)
-  const { rows, months, label } = useFilter(allRows)
+  const { rows, label } = useFilter(allRows)
 
   useEffect(() => { initialize(years) }, [years])
 
   if (loading) return <LoadingState />
   if (error)   return <ErrorState />
 
-  const dsoGlobal      = D.calcDSO(rows)
-  const dsoClientes    = D.calcDSOByCliente(rows)
+  // ── KPIs ──
+  const dsoGlobal      = D.calcDSOGlobal(rows)
   const ventasTotal    = D.sumMonto(rows.filter(D.isVenta))
+  const dsoClientes    = D.calcDSOByCliente(rows)
   const montoPendiente = dsoClientes.reduce((s, c) => s + c.montoPendiente, 0)
+  const tasaPago       = ventasTotal > 0 ? (ventasTotal - montoPendiente) / ventasTotal : null
   const tieneEmision   = rows.some(r => D.isVenta(r) && D.getFechaEmision(r))
 
-  // Solo filas con Fecha_Pago para el gráfico mensual
-  const lineData = months.map(m => {
-    const dso = D.calcDSO(D.filterByMonth(rows, m))
-    return { label: D.monthLabel(m), value: dso !== null ? parseFloat(dso.toFixed(1)) : null }
+  const dsoAccent = dsoGlobal === null ? 'neutral' : dsoGlobal <= 30 ? 'success' : dsoGlobal <= 60 ? 'amber' : 'danger'
+
+  // ── Histograma ──
+  const histData = TRAMOS_HIST.map(t => {
+    const count = rows.filter(r => {
+      if (!D.isVenta(r) || !D.getFechaEmision(r) || !D.getFechaPago(r)) return false
+      const emi  = D.parseDateCL(D.getFechaEmision(r))
+      const pago = D.parseDateCL(D.getFechaPago(r))
+      if (!emi || !pago) return false
+      const dias = (pago.getTime() - emi.getTime()) / 86400000
+      return dias >= t.min && dias <= t.max
+    }).length
+    return { label: t.label, count, color: t.color }
   })
+  const totalFactPagadas = histData.reduce((s, d) => s + d.count, 0)
 
-  const tramoData = TRAMOS.map((t, i) => ({
-    label:    t.label,
-    clientes: dsoClientes.filter(c => c.dsoDias >= t.min && c.dsoDias <= t.max).length,
-    color:    i < 2 ? COLORS.success : i < 4 ? COLORS.amber : COLORS.accent,
-  }))
-
-  const dsoAccent  = dsoGlobal === null ? 'neutral' : dsoGlobal <= 30 ? 'success' : dsoGlobal <= 60 ? 'amber' : 'danger'
-  const critCount  = dsoClientes.filter(c => c.montoPendiente > 0).length
-  const tasaPago   = ventasTotal > 0 ? (ventasTotal - montoPendiente) / ventasTotal : null
+  // ── Tablas ──
+  const facturasImpagas   = D.calcFacturasImpagas(allRows)
+  const peoresPagadores   = D.calcTopPeoresPagadores(allRows)
 
   return (
     <>
-      <PageHeader title="Cobranzas" subtitle="DSO · Días promedio de cobro (facturas pagadas)" years={years} allMonths={allMonths} loadedAt={loadedAt} />
+      <PageHeader title="Cobranzas" subtitle="DSO · Análisis de facturas y comportamiento de pago" years={years} allMonths={allMonths} loadedAt={loadedAt} />
 
       <div className="p-8 space-y-8">
 
@@ -96,20 +99,21 @@ export default function Cobranzas() {
           </div>
         )}
 
+        {/* KPIs */}
         <div>
           <SectionLabel>{label} · Análisis de cobranzas</SectionLabel>
           <div className="grid grid-cols-4 gap-4">
             <KpiCard
               label="DSO Global"
               value={dsoGlobal !== null ? D.formatDays(dsoGlobal) : '—'}
-              sub={dsoGlobal !== null ? (dsoGlobal <= 30 ? 'Saludable' : dsoGlobal <= 60 ? 'Atención — revisar' : 'Crítico — acción requerida') : 'Sin facturas pagadas en el período'}
+              sub={dsoGlobal !== null ? (dsoGlobal <= 30 ? 'Saludable' : dsoGlobal <= 60 ? 'Atención — revisar' : 'Crítico — acción requerida') : 'Sin datos suficientes'}
               accent={dsoAccent}
               icon={Clock}
             />
             <KpiCard
               label="Monto Pendiente"
               value={D.formatCLP(montoPendiente, true)}
-              sub={`${critCount} clientes con facturas sin pagar`}
+              sub={`${facturasImpagas.length} facturas sin pagar`}
               accent={montoPendiente > 0 ? 'danger' : 'success'}
               icon={AlertTriangle}
             />
@@ -130,99 +134,103 @@ export default function Cobranzas() {
           </div>
         </div>
 
+        {/* Histograma de facturas pagadas por tramo */}
         <div>
-          <SectionLabel>Evolución DSO mensual</SectionLabel>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <ChartCard
-                title="Días Promedio de Cobro (DSO)"
-                subtitle="Solo facturas pagadas · promedio de Fecha_Pago − Fecha_Emision"
-                height={260}
-              >
-                {lineData.some(d => d.value !== null) ? (
-                  <LineChartR
-                    data={lineData}
-                    color={COLORS.primary}
-                    yDomainMin={0}
-                    yTickFormatter={v => `${v}d`}
-                    referenceLines={[
-                      { y: 30, label: '30d', color: COLORS.success },
-                      { y: 60, label: '60d', color: COLORS.accent },
-                    ]}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-[12px] font-mono text-nl-400">Sin facturas pagadas con fechas en el período</div>
-                )}
-              </ChartCard>
-            </div>
-            <ChartCard title="Clientes por Tramo DSO" subtitle="N° de clientes en cada rango (solo facturas pagadas)" height={260}>
-              {dsoClientes.length > 0 ? (
-                <BarChartV
-                  data={tramoData}
-                  datasets={[{ key: 'clientes', label: 'N° clientes' }]}
-                  multiColor
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-[12px] font-mono text-nl-400">Sin datos suficientes</div>
-              )}
-            </ChartCard>
-          </div>
+          <SectionLabel>Distribución de facturas pagadas por tiempo de cobro</SectionLabel>
+          <ChartCard
+            title="Histograma de cobro"
+            subtitle={`${totalFactPagadas} facturas pagadas · agrupadas por días entre emisión y pago`}
+            height={260}
+          >
+            {totalFactPagadas > 0 ? (
+              <BarChartV
+                data={histData}
+                datasets={[{ key: 'count', label: 'Facturas' }]}
+                multiColor
+                yTickFormatter={v => String(v)}
+                tooltipFormatter={(v, name) => [`${v} factura${v !== 1 ? 's' : ''}`, name]}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-[12px] font-mono text-nl-400">Sin facturas pagadas con fechas en el período</div>
+            )}
+          </ChartCard>
         </div>
 
+        {/* Dos frames lado a lado */}
         <div>
-          <SectionLabel>Ranking · Comportamiento de pago por cliente</SectionLabel>
-          <DataTable
-            title="Clientes ordenados por monto pendiente"
-            badge={`${dsoClientes.length} clientes`}
-            columns={[
-              { header: '#', accessor: (_, i) => <RankBadge n={i} /> },
-              { header: 'Cliente', accessor: c => <span className="font-medium text-nl-text">{c.cliente}</span> },
-              {
-                header: 'Monto Total Facturado', align: 'right',
-                accessor: c => <span className="font-mono text-[12px] text-nl-700">{D.formatCLP(c.monto)}</span>,
-              },
-              {
-                header: 'Monto Cobrado', align: 'right',
-                accessor: c => (
-                  <div>
-                    <span className="font-mono text-[12px] text-nl-success-dark">{D.formatCLP(c.montoPagado)}</span>
-                    <ProgressBar pct={c.monto > 0 ? c.montoPagado / c.monto * 100 : 0} color={COLORS.success} />
-                  </div>
-                ),
-              },
-              {
-                header: 'Monto Pendiente', align: 'right',
-                accessor: c => (
-                  <span className={`font-mono text-[12px] font-semibold ${c.montoPendiente > 0 ? 'text-nl-danger' : 'text-nl-400'}`}>
-                    {c.montoPendiente > 0 ? D.formatCLP(c.montoPendiente) : '—'}
-                  </span>
-                ),
-              },
-              {
-                header: 'Fact. Totales', align: 'right',
-                accessor: c => <span className="font-mono text-[12px] text-nl-700">{c.transacciones}</span>,
-              },
-              {
-                header: 'Fact. Pagadas', align: 'right',
-                accessor: c => <span className="font-mono text-[12px] text-nl-700">{c.transaccionesPagadas}</span>,
-              },
-              {
-                header: 'DSO Prom.', align: 'right',
-                accessor: c => c.transaccionesPagadas > 0
-                  ? <DsoBadge dias={c.dsoDias} />
-                  : <span className="text-[10px] font-mono text-nl-400">Sin pagos</span>,
-              },
-              {
-                header: 'Estado', align: 'right',
-                accessor: c => c.transaccionesPagadas > 0
-                  ? <EstadoBadge dias={c.dsoDias} />
-                  : <span className="text-[10px] font-mono text-nl-400">—</span>,
-              },
-            ]}
-            rows={dsoClientes}
-            keyFn={c => c.cliente}
-            emptyText="Sin ventas en el período"
-          />
+          <SectionLabel>Detalle · Facturas impagas y peores pagadores</SectionLabel>
+          <div className="grid grid-cols-2 gap-4">
+
+            {/* Frame izquierdo: facturas impagas */}
+            <DataTable
+              title="Facturas impagas"
+              badge={`${facturasImpagas.length} facturas`}
+              columns={[
+                {
+                  header: 'Cliente',
+                  accessor: f => <span className="font-medium text-nl-text">{f.cliente}</span>,
+                },
+                {
+                  header: 'Monto', align: 'right',
+                  accessor: f => <span className="font-mono text-[12px] text-nl-700">{D.formatCLP(f.monto)}</span>,
+                },
+                {
+                  header: 'Vencimiento', align: 'right',
+                  accessor: f => (
+                    <span className="font-mono text-[12px] text-nl-400">{f.fechaVencimiento || '—'}</span>
+                  ),
+                },
+                {
+                  header: 'Días', align: 'right',
+                  accessor: f => (
+                    <span className={`font-mono text-[12px] font-semibold ${f.diasVencida > 0 ? 'text-nl-success-dark' : f.diasVencida >= -15 ? 'text-amber-700' : f.diasVencida >= -30 ? 'text-orange-700' : 'text-nl-danger'}`}>
+                      {f.diasVencida > 0 ? `+${f.diasVencida}` : f.diasVencida}
+                    </span>
+                  ),
+                },
+                {
+                  header: 'Estado', align: 'right',
+                  accessor: f => <SemaforoBadge {...semaforo(f.diasVencida)} />,
+                },
+              ]}
+              rows={facturasImpagas}
+              keyFn={(f, i) => `${f.cliente}-${i}`}
+              emptyText="Sin facturas impagas"
+            />
+
+            {/* Frame derecho: top 10 peores pagadores */}
+            <DataTable
+              title="Top 10 peores pagadores históricos"
+              badge="solo facturas pagadas"
+              columns={[
+                { header: '#', accessor: (_, i) => <RankBadge n={i} /> },
+                {
+                  header: 'Cliente',
+                  accessor: p => <span className="font-medium text-nl-text">{p.cliente}</span>,
+                },
+                {
+                  header: 'Fact. Pagadas', align: 'right',
+                  accessor: p => <span className="font-mono text-[12px] text-nl-700">{p.facturasPagadas}</span>,
+                },
+                {
+                  header: 'DSO Prom.', align: 'right',
+                  accessor: p => (
+                    <span className={`font-mono text-[12px] font-semibold ${p.dsoDias <= 20 ? 'text-nl-success-dark' : p.dsoDias <= 30 ? 'text-amber-700' : p.dsoDias <= 40 ? 'text-orange-700' : 'text-nl-danger'}`}>
+                      {Math.round(p.dsoDias)} días
+                    </span>
+                  ),
+                },
+                {
+                  header: 'Estado', align: 'right',
+                  accessor: p => <SemaforoBadge {...semaforoDso(p.dsoDias)} />,
+                },
+              ]}
+              rows={peoresPagadores}
+              keyFn={p => p.cliente}
+              emptyText="Sin facturas pagadas"
+            />
+
+          </div>
         </div>
 
       </div>

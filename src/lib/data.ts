@@ -50,9 +50,10 @@ export const getTipoCuenta = (row: Row) => (row['Tipo_Cuenta'] || '').trim()
 export const getEstado     = (row: Row) => (row['Estado'] || '').trim()
 export const getMesEco     = (row: Row) => (row['Mes_economico'] || '').trim()
 export const getAnoEco     = (row: Row) => (row['Ano_eco'] || '').trim()
-export const getFechaEmision = (row: Row) => (row['Fecha_emision'] || '').trim()
-export const getFechaPago    = (row: Row) => (row['Fecha_Pago'] || '').trim()
-export const getCliente      = (row: Row) => (row['Cliente'] || '').trim()
+export const getFechaEmision      = (row: Row) => (row['Fecha_emision'] || '').trim()
+export const getFechaPago         = (row: Row) => (row['Fecha_Pago'] || '').trim()
+export const getFechaVencimiento  = (row: Row) => (row['Fecha_Vencimiento'] || '').trim()
+export const getCliente           = (row: Row) => (row['Cliente'] || '').trim()
 
 export function getMonto(row: Row): number {
   const raw = String(row['monto_bruto'] || '0')
@@ -284,4 +285,80 @@ export function groupGastosByClasif(rows: Row[]): Record<string, number> {
     map[c] = (map[c] || 0) + getMonto(r)
   })
   return map
+}
+
+// DSO Global: paid invoices (Fecha_Pago - Fecha_Emision) + unpaid invoices (Hoy - Fecha_Emision)
+export function calcDSOGlobal(rows: Row[], today?: Date): number | null {
+  const hoy = today ?? new Date()
+  const hoyMs = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
+  const dias: number[] = []
+
+  rows.filter(r => isVenta(r) && getFechaEmision(r)).forEach(r => {
+    const emi = parseDateCL(getFechaEmision(r))
+    if (!emi) return
+    const pagoStr = getFechaPago(r)
+    if (pagoStr) {
+      const pago = parseDateCL(pagoStr)
+      if (pago && pago >= emi) dias.push((pago.getTime() - emi.getTime()) / 86400000)
+    } else if (getEstado(r) === 'Emitido') {
+      const d = (hoyMs - emi.getTime()) / 86400000
+      if (d >= 0) dias.push(d)
+    }
+  })
+
+  return dias.length > 0 ? dias.reduce((s, d) => s + d, 0) / dias.length : null
+}
+
+export interface FacturaImpaga {
+  cliente: string
+  monto: number
+  fechaVencimiento: string
+  diasVencida: number // positive = not yet due, negative = overdue
+}
+
+export function calcFacturasImpagas(rows: Row[], today?: Date): FacturaImpaga[] {
+  const hoy = today ?? new Date()
+  const hoyMs = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
+
+  return rows
+    .filter(r => isVenta(r) && getEstado(r) === 'Emitido' && !getFechaPago(r))
+    .map(r => {
+      const vencStr = getFechaVencimiento(r)
+      const venc = vencStr ? parseDateCL(vencStr) : null
+      const diasVencida = venc ? Math.round((venc.getTime() - hoyMs) / 86400000) : 0
+      return {
+        cliente: getCliente(r) || getDesc(r) || 'Sin nombre',
+        monto: getMonto(r),
+        fechaVencimiento: vencStr,
+        diasVencida,
+      }
+    })
+    .sort((a, b) => a.diasVencida - b.diasVencida) // most overdue first
+}
+
+export interface TopPagador {
+  cliente: string
+  facturasPagadas: number
+  dsoDias: number
+}
+
+export function calcTopPeoresPagadores(rows: Row[], limit = 10): TopPagador[] {
+  type Entry = { totalDias: number; count: number }
+  const map: Record<string, Entry> = {}
+
+  rows.filter(r => isVenta(r) && getFechaPago(r) && getFechaEmision(r)).forEach(r => {
+    const c = getCliente(r) || getDesc(r) || 'Sin nombre'
+    const emi = parseDateCL(getFechaEmision(r))
+    const pago = parseDateCL(getFechaPago(r))
+    if (!emi || !pago || pago < emi) return
+    const dias = (pago.getTime() - emi.getTime()) / 86400000
+    if (!map[c]) map[c] = { totalDias: 0, count: 0 }
+    map[c].totalDias += dias
+    map[c].count += 1
+  })
+
+  return Object.keys(map)
+    .map(c => ({ cliente: c, facturasPagadas: map[c].count, dsoDias: map[c].totalDias / map[c].count }))
+    .sort((a, b) => b.dsoDias - a.dsoDias)
+    .slice(0, limit)
 }
