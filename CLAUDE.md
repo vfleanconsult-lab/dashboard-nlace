@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Despliegue
+
+- **Producción:** https://dashboard-nlace.vercel.app
+- **Repo:** https://github.com/vfleanconsult-lab/dashboard-nlace
+- Vercel despliega automáticamente al mergear a `main`.
+- Siempre hacer push a la rama de trabajo y abrir PR → merge a `main` para que Vercel despliegue.
+
 ## Stack
 
 Vite 6 + React 18 + TypeScript + Tailwind CSS v4 + React Router v6 + Recharts + `@nlace/ui-kit` + Lucide React
