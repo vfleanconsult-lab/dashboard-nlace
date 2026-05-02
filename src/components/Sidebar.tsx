@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
 import { NlaceLogo } from '@nlace/ui-kit'
-import { LayoutDashboard, TrendingUp, Package, Receipt, Clock } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Package, Receipt, Clock, BarChart2 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { to: '/',          label: 'Resumen Ejecutivo', Icon: LayoutDashboard },
-  { to: '/ingresos',  label: 'Ingresos',          Icon: TrendingUp      },
-  { to: '/costos',    label: 'Costos',             Icon: Package         },
-  { to: '/gastos',    label: 'Gastos',             Icon: Receipt         },
-  { to: '/cobranzas', label: 'Cobranzas',          Icon: Clock           },
+  { to: '/',                  label: 'Resumen Ejecutivo', Icon: LayoutDashboard },
+  { to: '/ingresos',          label: 'Ingresos',          Icon: TrendingUp      },
+  { to: '/costos',            label: 'Costos',            Icon: Package         },
+  { to: '/gastos',            label: 'Gastos',            Icon: Receipt         },
+  { to: '/cobranzas',         label: 'Cobranzas',         Icon: Clock           },
+  { to: '/estado-resultado',  label: 'Estado Resultado',  Icon: BarChart2       },
 ]
 
 export default function Sidebar() {
