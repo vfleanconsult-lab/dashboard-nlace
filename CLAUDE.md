@@ -53,7 +53,7 @@ src/
 │       └── HBarChart.tsx     # BarChart horizontal
 └── pages/
     ├── Resumen.tsx    # Resumen Ejecutivo — KPIs + AreaBarChart comparativo
-    ├── Ingresos.tsx   # Ventas y otros ingresos — AreaChart + tabla ranking
+    ├── Ingresos.tsx   # Ventas y otros ingresos — BarChart mensual + ranking histórico clientes + tabla ventas del mes
     ├── Costos.tsx     # Estructura de costos — StackedBar + Donut + tabla
     ├── Gastos.tsx     # Gastos operacionales — Bar + Donut + tabla
     └── Cobranzas.tsx  # DSO — LineChart + distribución por tramo + ranking clientes
@@ -141,6 +141,40 @@ Todos los gráficos usan **Recharts**. No usar Chart.js ni react-chartjs-2.
 2. Añadir ruta en `src/App.tsx`
 3. Añadir entrada en `src/components/Sidebar.tsx` → `NAV_ITEMS`
 4. Usar `useData` + `useFilter` para datos y filtrado
+
+## Tablas con filtro local en Ingresos
+
+`Ingresos.tsx` tiene dos tablas propias que combinan el filtro global con lógica local:
+
+### Ranking histórico de ventas por cliente
+- Fuente: `rows` (ya filtradas por el período global via `useFilter`)
+- Filtra `isVenta` (`Cuenta_Cble === "5101-01"`), agrupa por `Cliente`
+- Calcula N° facturas y monto total; ordena de mayor a menor monto
+- Si el filtro global cambia de año, el ranking se actualiza automáticamente
+
+### Ventas del mes
+- Tiene un `<select>` de mes propio independiente del selector de período global
+- Los meses disponibles en el selector se calculan con `D.getMonthsForYear(allRows.filter(D.isVenta), selectedYear)` — acotados al año del filtro global
+- Estado local: `localMonth` (string `''` = automático)
+- Al cambiar el año global (`selectedYear`), un `useEffect` resetea `localMonth` a `''`
+- Comportamiento automático (cuando `localMonth === ''`):
+  - Si el mes calendario actual (`NOW_MONTH`) tiene datos en el año global → muestra ese mes
+  - Si no → carga el último mes con actividad y muestra el aviso de fallback
+- Filtra por `Mes_economico` (nunca por `Fecha_emision`)
+- Columnas: Cliente · Monto Bruto · Fecha Emisión, ordenadas de mayor a menor monto
+
+**Patrón reutilizable para filtro local de mes en otras páginas:**
+```tsx
+const salesMonthsInYear = useMemo(
+  () => D.getMonthsForYear(allRows.filter(D.isVenta), selectedYear),
+  [allRows, selectedYear]
+)
+const [localMonth, setLocalMonth] = useState('')
+useEffect(() => { setLocalMonth('') }, [selectedYear])
+const effectiveMonth = localMonth || (salesMonthsInYear.includes(NOW_MONTH)
+  ? NOW_MONTH
+  : salesMonthsInYear[salesMonthsInYear.length - 1] ?? '')
+```
 
 ## Áreas incompletas
 
