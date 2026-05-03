@@ -134,42 +134,7 @@ export default function Ingresos() {
           </div>
         </div>
 
-        {/* ── CAMBIO 1: Ranking histórico de ventas por cliente ── */}
-        <div>
-          <SectionLabel>Ranking histórico de ventas por cliente</SectionLabel>
-          <DataTable
-            title="Ranking histórico de ventas por cliente"
-            badge={label}
-            columns={[
-              {
-                header: '#',
-                accessor: (_row, i) => <RankBadge n={i} />,
-                align: 'left',
-                className: 'w-10',
-              },
-              {
-                header: 'Cliente',
-                accessor: 'cliente',
-                align: 'left',
-              },
-              {
-                header: 'N° Facturas',
-                accessor: (row) => <span className="font-body tabular-nums">{row.facturas}</span>,
-                align: 'right',
-              },
-              {
-                header: 'Monto Total Facturado',
-                accessor: (row) => <span className="font-body tabular-nums">{D.formatCLP(row.total)}</span>,
-                align: 'right',
-              },
-            ]}
-            rows={rankingData}
-            keyFn={(row) => row.cliente}
-            emptyText="Sin ventas en el período seleccionado"
-          />
-        </div>
-
-        {/* ── CAMBIO 2: Ventas del mes ── */}
+        {/* ── Ventas del mes ── */}
         <div>
           <SectionLabel>Ventas del mes</SectionLabel>
 
@@ -224,6 +189,41 @@ export default function Ingresos() {
             rows={ventasDelMes}
             keyFn={(_row, i) => String(i)}
             emptyText={effectiveMonth ? `Sin ventas en ${formatMonthLabel(effectiveMonth)}` : 'Sin datos disponibles'}
+          />
+        </div>
+
+        {/* ── Ranking histórico de ventas por cliente ── */}
+        <div>
+          <SectionLabel>Ranking histórico de ventas por cliente</SectionLabel>
+          <DataTable
+            title="Ranking histórico de ventas por cliente"
+            badge={label}
+            columns={[
+              {
+                header: '#',
+                accessor: (_row, i) => <RankBadge n={i} />,
+                align: 'left',
+                className: 'w-10',
+              },
+              {
+                header: 'Cliente',
+                accessor: 'cliente',
+                align: 'left',
+              },
+              {
+                header: 'N° Facturas',
+                accessor: (row) => <span className="font-body tabular-nums">{row.facturas}</span>,
+                align: 'right',
+              },
+              {
+                header: 'Monto Total Facturado',
+                accessor: (row) => <span className="font-body tabular-nums">{D.formatCLP(row.total)}</span>,
+                align: 'right',
+              },
+            ]}
+            rows={rankingData}
+            keyFn={(row) => row.cliente}
+            emptyText="Sin ventas en el período seleccionado"
           />
         </div>
 
