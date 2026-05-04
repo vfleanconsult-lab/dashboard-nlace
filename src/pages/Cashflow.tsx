@@ -115,7 +115,7 @@ function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
     const costos          = costoVenta + otrosGastosExpl
     const gastosAdm       = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Adm')
     const serviciosComp   = sumPag(r => D.getTipoCuenta(r) === 'Gasto_ERP')
-    const publicidad      = sumPag(r => D.getTipoCuenta(r) === 'Gasto_mkg')
+    const publicidad      = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Mkg')
     const representacion  = sumPag(r => D.getCuenta(r) === '4201-09')
     const locomocion      = sumPag(r => D.getCuenta(r) === '4201-26')
     const legales         = sumPag(r => D.getCuenta(r) === '4201-12')
