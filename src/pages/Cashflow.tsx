@@ -101,24 +101,26 @@ function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
 
   for (const ym of sortedYMs) {
     const rows = grouped[ym] ?? []
-    const sum = (fn: (r: D.Row) => boolean) =>
+    const sum    = (fn: (r: D.Row) => boolean) =>
       rows.filter(fn).reduce((s, r) => s + D.getMonto(r), 0)
+    const sumPag = (fn: (r: D.Row) => boolean) =>
+      sum(r => D.getEstado(r) === 'Pagada' && fn(r))
 
     const saldoInicial    = ym === '2026-01' ? SALDO_INICIAL_JAN_2026 : prevFinal
     const ventas          = sum(r => D.getCuenta(r) === '5101-01')
     const otrosIngresos   = sum(r => D.getCuenta(r) === '5201-03')
     const ingresos        = ventas + otrosIngresos
-    const costoVenta      = sum(r => D.getCuenta(r) === '4101-01')
-    const otrosGastosExpl = sum(r => D.getCuenta(r) === '4101-09')
+    const costoVenta      = sumPag(r => D.getCuenta(r) === '4101-01')
+    const otrosGastosExpl = sumPag(r => D.getCuenta(r) === '4101-09')
     const costos          = costoVenta + otrosGastosExpl
-    const gastosAdm       = sum(r => D.getTipoCuenta(r) === 'Gasto_Adm')
-    const serviciosComp   = sum(r => D.getTipoCuenta(r) === 'Gasto_ERP')
-    const publicidad      = sum(r => D.getTipoCuenta(r) === 'Gasto_mkg')
-    const representacion  = sum(r => D.getCuenta(r) === '4201-09')
-    const locomocion      = sum(r => D.getCuenta(r) === '4201-26')
-    const legales         = sum(r => D.getCuenta(r) === '4201-12')
+    const gastosAdm       = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Adm')
+    const serviciosComp   = sumPag(r => D.getTipoCuenta(r) === 'Gasto_ERP')
+    const publicidad      = sumPag(r => D.getTipoCuenta(r) === 'Gasto_mkg')
+    const representacion  = sumPag(r => D.getCuenta(r) === '4201-09')
+    const locomocion      = sumPag(r => D.getCuenta(r) === '4201-26')
+    const legales         = sumPag(r => D.getCuenta(r) === '4201-12')
     const gastos          = gastosAdm + serviciosComp + publicidad + representacion + locomocion + legales
-    const remDirector     = sum(r => D.getCuenta(r) === '4401-02')
+    const remDirector     = sumPag(r => D.getCuenta(r) === '4401-02')
     const saldoFinal      = saldoInicial + ingresos - costos - gastos - remDirector
 
     result.set(ym, {
