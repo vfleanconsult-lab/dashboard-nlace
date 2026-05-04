@@ -77,11 +77,11 @@ export default function Ingresos() {
   if (loading) return <LoadingState />
   if (error)   return <ErrorState />
 
-  const ventas    = D.sumMonto(rows.filter(D.isVenta))
-  const otrosIng  = D.sumMonto(rows.filter(D.isOtroIngreso))
+  const ventas    = D.sumMonto(rows.filter(r => D.isVenta(r) && D.isPagado(r)))
+  const otrosIng  = D.sumMonto(rows.filter(r => D.isOtroIngreso(r) && D.isPagado(r)))
   const totalIng  = ventas + otrosIng
-  const ventasByM = D.groupByMonth(rows, D.isVenta)
-  const otrosByM  = D.groupByMonth(rows, D.isOtroIngreso)
+  const ventasByM = D.groupByMonth(rows, r => D.isVenta(r) && D.isPagado(r))
+  const otrosByM  = D.groupByMonth(rows, r => D.isOtroIngreso(r) && D.isPagado(r))
 
   const chartData = months.map(m => ({
     label:  D.monthLabel(m),

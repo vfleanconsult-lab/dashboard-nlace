@@ -42,7 +42,7 @@ export default function Resumen() {
   const kpis    = D.calcKPIs(rows)
   const kpisB   = calcCompareKPIs(compareRows)
 
-  const ventasByM  = D.groupByMonth(rows, D.isVenta)
+  const ventasByM  = D.groupByMonth(rows, r => D.isVenta(r) && D.isPagado(r))
   const costosByM  = D.groupByMonth(rows, D.isCosto)
   const gastosByM  = D.groupByMonth(rows, D.isGasto)
   const chartData  = months.map(m => {
@@ -51,7 +51,7 @@ export default function Resumen() {
   })
 
   // Compare chart: overlay both periods by month index
-  const ventasByMB = compareRows ? D.groupByMonth(compareRows, D.isVenta) : {}
+  const ventasByMB = compareRows ? D.groupByMonth(compareRows, r => D.isVenta(r) && D.isPagado(r)) : {}
   const costosByMB = compareRows ? D.groupByMonth(compareRows, D.isCosto) : {}
   const gastosByMB = compareRows ? D.groupByMonth(compareRows, D.isGasto) : {}
   const compareChartData = isCompare

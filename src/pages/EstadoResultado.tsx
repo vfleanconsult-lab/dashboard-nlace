@@ -43,7 +43,7 @@ const PARTIDAS: Partida[] = [
 type Valores = Record<PartidaKey, number>
 
 function calcValues(rows: D.Row[]): Valores {
-  const ingresos      = D.sumMonto(rows.filter(r => D.getCuenta(r) === '5101-01'))
+  const ingresos      = D.sumMonto(rows.filter(r => D.getCuenta(r) === '5101-01' && D.isPagado(r)))
   const costoVenta    = D.sumMonto(rows.filter(r => D.getCuenta(r) === '4101-01'))
   const otrosCostos   = D.sumMonto(rows.filter(r => D.getCuenta(r) === '4101-09'))
   const costos        = costoVenta + otrosCostos

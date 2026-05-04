@@ -79,6 +79,7 @@ export function getMonth(row: Row): string | null {
 export const isVenta       = (row: Row) => getTipo(row) === 'Ingreso' && getCuenta(row) === '5101-01'
 export const isOtroIngreso = (row: Row) => getTipo(row) === 'Ingreso' && getCuenta(row) !== '5101-01'
 export const isCosto       = (row: Row) => getTipo(row) === 'Costo'
+export const isPagado      = (row: Row) => getEstado(row) === 'Pagada' || getEstado(row) === 'Pagada_parcial'
 
 // Tipo='Remun' en la fuente de datos → separado de 'Gasto', no necesita exclusión manual
 export const isRemDirectores = (row: Row) => getTipo(row) === 'Remun'
@@ -180,8 +181,8 @@ export function invalidateCache(): void {
 }
 
 export function calcKPIs(rows: Row[]): KPIs {
-  const ventas        = sumMonto(rows.filter(isVenta))
-  const otrosIngresos = sumMonto(rows.filter(isOtroIngreso))
+  const ventas        = sumMonto(rows.filter(r => isVenta(r) && isPagado(r)))
+  const otrosIngresos = sumMonto(rows.filter(r => isOtroIngreso(r) && isPagado(r)))
   const costos        = sumMonto(rows.filter(isCosto))
   const gastos        = sumMonto(rows.filter(isGasto))
   const utilBruta     = ventas - costos
