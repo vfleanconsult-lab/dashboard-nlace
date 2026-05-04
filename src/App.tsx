@@ -7,6 +7,7 @@ import Costos from './pages/Costos'
 import Gastos from './pages/Gastos'
 import Cobranzas from './pages/Cobranzas'
 import EstadoResultado from './pages/EstadoResultado'
+import Cashflow from './pages/Cashflow'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="gastos" element={<Gastos />} />
           <Route path="cobranzas" element={<Cobranzas />} />
           <Route path="estado-resultado" element={<EstadoResultado />} />
+          <Route path="cashflow" element={<Cashflow />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
