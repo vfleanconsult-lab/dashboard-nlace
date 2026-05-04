@@ -101,14 +101,16 @@ function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
 
   for (const ym of sortedYMs) {
     const rows = grouped[ym] ?? []
-    const sum    = (fn: (r: D.Row) => boolean) =>
+    const sum       = (fn: (r: D.Row) => boolean) =>
       rows.filter(fn).reduce((s, r) => s + D.getMonto(r), 0)
-    const sumPag = (fn: (r: D.Row) => boolean) =>
+    const sumPag     = (fn: (r: D.Row) => boolean) =>
       sum(r => D.getEstado(r) === 'Pagada' && fn(r))
+    const sumIngreso = (fn: (r: D.Row) => boolean) =>
+      sum(r => (D.getEstado(r) === 'Pagada' || D.getEstado(r) === 'pagada_parcial') && fn(r))
 
     const saldoInicial    = ym === '2026-01' ? SALDO_INICIAL_JAN_2026 : prevFinal
-    const ventas          = sum(r => D.getCuenta(r) === '5101-01')
-    const otrosIngresos   = sum(r => D.getCuenta(r) === '5201-03')
+    const ventas          = sumIngreso(r => D.getCuenta(r) === '5101-01')
+    const otrosIngresos   = sumIngreso(r => D.getCuenta(r) === '5201-03')
     const ingresos        = ventas + otrosIngresos
     const costoVenta      = sumPag(r => D.getCuenta(r) === '4101-01')
     const otrosGastosExpl = sumPag(r => D.getCuenta(r) === '4101-09')
