@@ -24,10 +24,10 @@ Dashboard financiero interno para análisis de resultados de gestión.
 ## Vistas
 
 ### Resumen Ejecutivo
-KPIs consolidados: ventas, costos, gastos, utilidad bruta y operacional, márgenes. Gráfico comparativo de períodos.
+KPIs consolidados: ventas, costos, gastos, utilidad bruta y operacional, márgenes. Gráfico comparativo de períodos. Tabla de punto de equilibrio mensual.
 
 ### Ingresos
-Evolución de ventas por mes. Ranking de ingresos por cuenta. Soporta comparación de períodos.
+KPIs de ventas y otros ingresos YTD. Evolución mensual (barras). Tabla ventas del mes con selector propio. Ranking histórico de clientes.
 
 ### Costos
 Estructura de costos por clasificación. Gráfico apilado + donut + tabla detalle.
@@ -40,6 +40,12 @@ Gastos operacionales por clasificación (excluye retiro de directores). Bar char
 - **Histograma** — distribución de facturas pagadas por tramos de días (≤20 / 21-30 / 31-40 / >40), con colores semáforo
 - **Facturas impagas** — listado por factura con días sobre vencimiento y semáforo
 - **Top 10 peores pagadores** — agrupado por cliente con DSO promedio y días sobre vencimiento
+
+### Estado de Resultado
+Tabla de Estado de Resultado con 7 partidas contables (Ingresos → Costos → Margen Bruto → Gastos → Resultado Op. → Rem. Directores → EBITDA). Vista YTD acumulada + evolución mensual en tabla horizontal.
+
+### Cashflow
+Flujo de caja mensual agrupado por **Fecha de Pago** (no por Mes Económico). Muestra los 12 meses del año seleccionado en columnas y 16 filas de componentes (saldo inicial, ingresos, costos, gastos desglosados, remuneración director, saldo final). Solo disponible desde 2026. Saldo inicial enero 2026 = $2.109.833 fijo; los meses siguientes encadenan el saldo final del mes anterior.
 
 ---
 
@@ -54,14 +60,21 @@ https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7Q
 Cache busting cada 15 minutos. Para cambiar la fuente editar solo `CSV_URL` en `src/lib/data.ts`.
 
 **Columnas clave:**
-- `Tipo` — Ingreso / Costo / Gasto / Remun
+- `Tipo` — `Ingreso` / `Costo` / `Gasto` / `Remun`
 - `Cuenta_Cble` — código contable (ventas = `5101-01`)
+- `Tipo_Cuenta` — clasificación de cuenta (ej. `Gasto_Adm`, `Gasto_ERP`, `Gasto_Mkg`)
+- `Estado` — `Emitida` / `Pagada` / `Pagada_parcial`
 - `Cliente` — nombre del cliente
-- `Mes_economico` — período `YYYY-MM`
-- `monto_bruto` — monto de la transacción
-- `Fecha_Emision` — fecha de emisión de la factura (`DD/MM/YYYY`)
+- `Mes_economico` — período `YYYY-MM` (base para vistas devengado)
+- `monto_bruto` — monto de la transacción (siempre positivo)
+- `Fecha_emision` — fecha de emisión de la factura (`DD/MM/YYYY`)
 - `Fecha_Vencimiento` — fecha límite de pago (`DD/MM/YYYY`)
-- `Fecha_Pago` — fecha de pago real, vacía si impaga (`DD/MM/YYYY`)
+- `Fecha_Pago` — fecha de pago real, vacía si impaga (`DD/MM/YYYY`) — base para Cashflow
+
+**Criterios de Estado por vista:**
+- **Vistas devengado** (Resumen, Ingresos, EstadoResultado): ingresos con `Estado ∈ { Emitida, Pagada, Pagada_parcial }`
+- **Cashflow**: ingresos con `Estado ∈ { Pagada, Pagada_parcial }` · egresos con `Estado = Pagada`
+- **Cobranzas (DSO)**: todas las ventas, sin filtro de estado
 
 ---
 
@@ -90,6 +103,5 @@ npm run lint
 Vercel despliega automáticamente al hacer merge a `main`.
 
 Flujo de trabajo:
-1. Crear rama de trabajo
-2. Hacer push y abrir Pull Request a `main`
-3. Mergear → Vercel despliega automáticamente
+1. Hacer push directo a `main` (o crear rama + PR si se prefiere revisión)
+2. Vercel detecta el push y despliega automáticamente

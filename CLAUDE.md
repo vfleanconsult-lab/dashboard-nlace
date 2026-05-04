@@ -52,11 +52,13 @@ src/
 │       ├── LineChartR.tsx    # LineChart con reference lines (DSO)
 │       └── HBarChart.tsx     # BarChart horizontal
 └── pages/
-    ├── Resumen.tsx    # Resumen Ejecutivo — KPIs + AreaBarChart comparativo
-    ├── Ingresos.tsx   # Ventas y otros ingresos — BarChart mensual + ranking histórico clientes + tabla ventas del mes
-    ├── Costos.tsx     # Estructura de costos — StackedBar + Donut + tabla
-    ├── Gastos.tsx     # Gastos operacionales — Bar + Donut + tabla
-    └── Cobranzas.tsx  # DSO — LineChart + distribución por tramo + ranking clientes
+    ├── Resumen.tsx         # Resumen Ejecutivo — KPIs + AreaBarChart comparativo
+    ├── Ingresos.tsx        # Ventas y otros ingresos — BarChart mensual + ranking histórico clientes + tabla ventas del mes
+    ├── Costos.tsx          # Estructura de costos — StackedBar + Donut + tabla
+    ├── Gastos.tsx          # Gastos operacionales — Bar + Donut + tabla
+    ├── Cobranzas.tsx       # DSO — LineChart + distribución por tramo + ranking clientes
+    ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
+    └── Cashflow.tsx        # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
 ```
 
 ## Fuente de datos
@@ -69,12 +71,18 @@ CSV_URL = "https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfU
 
 Cache busting cada 15 minutos (`_cb` param). Para cambiar la fuente, modificar solo `CSV_URL`.
 
-**Columnas clave:** `Tipo` (Ingreso/Costo/Gasto), `Cuenta_Cble`, `Descripcion Cta.`, `Clasificacion_Gasto`, `Clasificacion_Cto`, `Mes_economico` (YYYY-MM), `Ano_eco` (YYYY), `monto_bruto`, `Fecha_emision`, `Fecha_Pago`
+**Columnas clave:** `Tipo` (Ingreso/Costo/Gasto/Remun), `Cuenta_Cble`, `Descripcion Cta.`, `Clasificacion_Gasto`, `Clasificacion_Cto`, `Tipo_Cuenta`, `Estado`, `Mes_economico` (YYYY-MM), `Ano_eco` (YYYY), `monto_bruto`, `Fecha_emision`, `Fecha_Pago`
+
+**Valores de `Estado`:**
+- `"Emitida"` — factura emitida, aún no pagada
+- `"Pagada"` — pago total recibido
+- `"Pagada_parcial"` — pago parcial recibido
 
 **Reglas de negocio en `data.ts` — no tocar:**
 - Ventas: `Tipo === "Ingreso" && Cuenta_Cble === "5101-01"`
 - Costos: `Tipo === "Costo"`
 - Gastos: `Tipo === "Gasto"` excluyendo retiro de directores (filtrado por keywords en descripción/clasificación)
+- `isPagado(row)`: helper que evalúa `Estado ∈ { "Emitida", "Pagada", "Pagada_parcial" }` — usado para filtrar ingresos en vistas de devengado (Resumen, EstadoResultado, Ingresos)
 
 ## Sistema de filtrado de períodos
 
@@ -175,6 +183,35 @@ const effectiveMonth = localMonth || (salesMonthsInYear.includes(NOW_MONTH)
   ? NOW_MONTH
   : salesMonthsInYear[salesMonthsInYear.length - 1] ?? '')
 ```
+
+## Vista Cashflow — reglas específicas
+
+`Cashflow.tsx` es diferente al resto de las páginas:
+
+- **Fecha de agrupación:** `Fecha_Pago` (NO `Mes_economico`). Solo registros con `Fecha_Pago` presente.
+- **Año mínimo:** 2026. No se calculan ni muestran años anteriores.
+- **Saldo inicial enero 2026:** `$2.109.833` (valor fijo hardcodeado).
+- **Encadenamiento:** `SaldoFinal(mes N) → SaldoInicial(mes N+1)`.
+- **Filtro de Estado en ingresos (Cashflow):** solo `"Pagada"` o `"Pagada_parcial"` — NO incluye `"Emitida"` (es flujo de caja, no devengado).
+- **Filtro de Estado en egresos (Cashflow):** solo `"Pagada"`.
+- **Selector de año:** solo muestra años ≥ 2026; usa `cfYears` derivado de `Fecha_Pago`.
+- **Estructura de filas:** 16 filas fijas (Saldo Inicial → Saldo Final). Los subtotales se destacan visualmente. Saldo Final negativo → valor absoluto en `text-nl-danger`.
+
+**Cuentas usadas en Cashflow:**
+
+| Fila | Filtro |
+|------|--------|
+| Ventas | `Cuenta_Cble === "5101-01"` |
+| Otros Ingresos | `Cuenta_Cble === "5201-03"` |
+| Costo Venta | `Cuenta_Cble === "4101-01"` + Estado Pagada |
+| Otros Gastos Explotación | `Cuenta_Cble === "4101-09"` + Estado Pagada |
+| Gastos Adm | `Tipo_Cuenta === "Gasto_Adm"` + Estado Pagada |
+| Servicios Computacionales | `Tipo_Cuenta === "Gasto_ERP"` + Estado Pagada |
+| Publicidad | `Tipo_Cuenta === "Gasto_Mkg"` + Estado Pagada |
+| Representación y Viáticos | `Cuenta_Cble === "4201-09"` + Estado Pagada |
+| Locomoción | `Cuenta_Cble === "4201-26"` + Estado Pagada |
+| Legales y Notariales | `Cuenta_Cble === "4201-12"` + Estado Pagada |
+| Remuneración Director | `Cuenta_Cble === "4401-02"` + Estado Pagada |
 
 ## Áreas incompletas
 
