@@ -26,7 +26,8 @@ npm run lint     # ESLint
 ```
 src/
 ├── lib/
-│   ├── data.ts           # Lógica de datos (CSV → filtros → KPIs → DSO). NO MODIFICAR sin necesidad.
+│   ├── supabase.ts       # Cliente Supabase + EMPRESA_RUT (punto de entrada a la BD)
+│   ├── data.ts           # Lógica de datos (Supabase → filtros → KPIs → DSO). NO MODIFICAR sin necesidad.
 │   ├── filter.ts         # Tipos de período, filterRowsByPeriod, getMonthsForPeriod, labels
 │   ├── FilterContext.tsx # Contexto React del filtro global (proveedor en App.tsx)
 │   ├── useFilter.ts      # Hook que consume FilterContext y retorna rows/months/labels filtrados
@@ -61,15 +62,68 @@ src/
     └── Cashflow.tsx        # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
 ```
 
-## Fuente de datos
+## Fuente de datos — Supabase
 
-Google Sheets exportado como CSV vía URL pública en `src/lib/data.ts`:
+La fuente de datos migró de Google Sheets CSV a **Supabase** (mayo 2025).
+El cliente está en `src/lib/supabase.ts`. Los datos se leen desde la vista
+`registros_contables` filtrada siempre por `empresa_id`.
+
+**Proyecto Supabase:** `https://orjufhwfepojfiqejhfc.supabase.co`
+
+### Arquitectura multiempresa
+
+Todas las tablas tienen `empresa_id (UUID FK → empresas.id)`.
+La empresa activa se define por `EMPRESA_RUT` en `src/lib/supabase.ts`.
+En el futuro vendrá del contexto de sesión/auth.
+
+### Tablas
+
+| Tabla | Contenido | Tipo origen |
+|-------|-----------|-------------|
+| `empresas` | Tabla maestra de clientes SaaS | — |
+| `ventas` | Facturas e ingresos | `Tipo = Ingreso` |
+| `costos` | Costos de operación | `Tipo = Costo` |
+| `gastos` | Gastos operacionales | `Tipo = Gasto` |
+| `remuneraciones` | Remuneración directores | `Tipo = Remun` |
+
+### Vista unificada
+
+`registros_contables` — UNION ALL de las 4 tablas con columna `tipo` sintética.
+Configurada con `security_invoker = on` para que el RLS de las tablas
+subyacentes se aplique según el usuario que consulta.
+`data.ts` lee siempre desde esta vista.
+
+### Schema de columnas (todas las tablas)
 
 ```
-CSV_URL = "https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970"
+empresa_id, cuenta_cble, descripcion_cta, clasificacion_gasto,
+clasificacion_cto, tipo_cuenta, estado, mes_economico, ano_eco,
+monto_bruto (NUMERIC), fecha_emision (DATE), fecha_pago (DATE),
+fecha_vencimiento (DATE), cliente, creado_en
 ```
 
-Cache busting cada 15 minutos (`_cb` param). Para cambiar la fuente, modificar solo `CSV_URL`.
+### RLS
+
+- SELECT: `anon` y `authenticated` pueden leer (lectura pública por ahora)
+- INSERT: solo `service_role` (migraciones y cargas futuras)
+- Estructura preparada para restringir por `empresa_id` cuando haya auth
+
+### Migración de datos históricos
+
+921 filas migradas desde Google Sheet `Data_Comb` (mayo 2025):
+- ventas: 206 filas
+- costos: 306 filas
+- gastos: 373 filas
+- remuneraciones: 36 filas
+
+Script de migración: `supabase/migrate.mjs` (requiere `.env` con credenciales).
+Schema inicial: `supabase/migrations/20250505_001_schema_inicial.sql`.
+
+### Mapper CSV → Row
+
+`supabaseToRow()` en `data.ts` convierte columnas snake_case de Supabase
+a los nombres originales del CSV (`Tipo`, `Cuenta_Cble`, etc.) para que
+toda la lógica de negocio existente funcione sin cambios.
 
 **Columnas clave:** `Tipo` (Ingreso/Costo/Gasto/Remun), `Cuenta_Cble`, `Descripcion Cta.`, `Clasificacion_Gasto`, `Clasificacion_Cto`, `Tipo_Cuenta`, `Estado`, `Mes_economico` (YYYY-MM), `Ano_eco` (YYYY), `monto_bruto`, `Fecha_emision`, `Fecha_Pago`
 
