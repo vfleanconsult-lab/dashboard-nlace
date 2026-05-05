@@ -1,7 +1,4 @@
-import Papa from 'papaparse'
-
-const CSV_URL =
-  'https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970'
+import { supabase, EMPRESA_RUT } from './supabase'
 
 export type Row = Record<string, string>
 
@@ -34,12 +31,83 @@ interface State {
   loadedAt: Date | null
 }
 
-function buildUrl(): string {
-  const ts = Math.floor(Date.now() / (15 * 60 * 1000))
-  return CSV_URL + '&_cb=' + ts
+const state: State = { rows: [], years: [], loaded: false, error: null, loadedAt: null }
+
+type SupabaseRow = {
+  tipo: string
+  cuenta_cble: string | null
+  descripcion_cta: string | null
+  clasificacion_gasto: string | null
+  clasificacion_cto: string | null
+  tipo_cuenta: string | null
+  estado: string | null
+  mes_economico: string | null
+  ano_eco: string | null
+  monto_bruto: number | null
+  fecha_emision: string | null
+  fecha_pago: string | null
+  fecha_vencimiento: string | null
+  cliente: string | null
 }
 
-const state: State = { rows: [], years: [], loaded: false, error: null, loadedAt: null }
+function supabaseToRow(r: SupabaseRow): Row {
+  return {
+    'Tipo':                 r.tipo || '',
+    'Cuenta_Cble':          r.cuenta_cble || '',
+    'Descripcion Cta.':     r.descripcion_cta || '',
+    'Clasificacion_Gasto':  r.clasificacion_gasto || '',
+    'Clasificacion_Cto':    r.clasificacion_cto || '',
+    'Tipo_Cuenta':          r.tipo_cuenta || '',
+    'Estado':               r.estado || '',
+    'Mes_economico':        r.mes_economico || '',
+    'Ano_eco':              r.ano_eco || '',
+    // Número → string con coma decimal para que getMonto() lo procese igual que el CSV
+    'monto_bruto':          r.monto_bruto != null ? String(r.monto_bruto).replace('.', ',') : '0',
+    'Fecha_emision':        r.fecha_emision || '',
+    'Fecha_Pago':           r.fecha_pago || '',
+    'Fecha_Vencimiento':    r.fecha_vencimiento || '',
+    'Cliente':              r.cliente || '',
+  }
+}
+
+async function fetchFromSupabase(): Promise<void> {
+  // 1. Obtener empresa_id de NLACE
+  const { data: empresas, error: empErr } = await supabase
+    .from('empresas')
+    .select('id')
+    .eq('rut', EMPRESA_RUT)
+
+  if (empErr) throw empErr
+  if (!empresas || empresas.length === 0) throw new Error('Empresa no encontrada: ' + EMPRESA_RUT)
+  const empresaId = empresas[0].id
+
+  // 2. Descargar todos los registros con paginación
+  const SELECT = 'tipo,cuenta_cble,descripcion_cta,clasificacion_gasto,clasificacion_cto,tipo_cuenta,estado,mes_economico,ano_eco,monto_bruto,fecha_emision,fecha_pago,fecha_vencimiento,cliente'
+  let allRows: SupabaseRow[] = []
+  let from = 0
+  const PAGE = 1000
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('registros_contables')
+      .select(SELECT)
+      .eq('empresa_id', empresaId)
+      .range(from, from + PAGE - 1)
+
+    if (error) throw error
+    if (!data || data.length === 0) break
+    allRows = allRows.concat(data as SupabaseRow[])
+    if (data.length < PAGE) break
+    from += PAGE
+  }
+
+  state.rows = allRows.map(supabaseToRow)
+  const ym: Record<string, boolean> = {}
+  state.rows.forEach(r => { const y = getYear(r); if (y) ym[y] = true })
+  state.years = Object.keys(ym).sort().reverse()
+  state.loaded = true
+  state.loadedAt = new Date()
+}
 
 export const getTipo       = (row: Row) => (row['Tipo'] || '').trim()
 export const getCuenta     = (row: Row) => (row['Cuenta_Cble'] || '').trim()
@@ -152,24 +220,9 @@ export function loadData(
   onError: (err: unknown) => void,
 ): void {
   if (state.loaded) { onSuccess(state.rows, state.years); return }
-  Papa.parse<Row>(buildUrl(), {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete(result) {
-      state.rows = result.data.filter(r => {
-        const t = getTipo(r)
-        return t === 'Ingreso' || t === 'Costo' || t === 'Gasto' || t === 'Remun'
-      })
-      const ym: Record<string, boolean> = {}
-      state.rows.forEach(r => { const y = getYear(r); if (y) ym[y] = true })
-      state.years = Object.keys(ym).sort().reverse()
-      state.loaded = true
-      state.loadedAt = new Date()
-      onSuccess(state.rows, state.years)
-    },
-    error(err) { state.error = err; onError(err) },
-  })
+  fetchFromSupabase()
+    .then(() => onSuccess(state.rows, state.years))
+    .catch(err => { state.error = err; onError(err) })
 }
 
 export function getState() {

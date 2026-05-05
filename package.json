@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@nlace/ui-kit": "latest",
+    "@supabase/supabase-js": "^2.105.3",
     "lucide-react": "^1.11.0",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
