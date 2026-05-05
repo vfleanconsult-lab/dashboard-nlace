@@ -48,7 +48,7 @@ const TRAMOS_HIST = [
 ]
 
 export default function Cobranzas() {
-  const { rows: allRows, years, loading, error, loadedAt } = useData()
+  const { rows: allRows, years, loading, error, errorDetail, loadedAt } = useData()
   const { initialize } = useFilterContext()
   const allMonths = getAllMonths(allRows)
   const { rows, label } = useFilter(allRows)
@@ -56,7 +56,7 @@ export default function Cobranzas() {
   useEffect(() => { initialize(years) }, [years])
 
   if (loading) return <LoadingState />
-  if (error)   return <ErrorState />
+  if (error)   return <ErrorState error={errorDetail} />
 
   // ── KPIs ──
   const dsoGlobal      = D.calcDSO(rows)
