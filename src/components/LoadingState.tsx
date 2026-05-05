@@ -10,7 +10,11 @@ export function LoadingState() {
 }
 
 export function ErrorState({ error }: { error?: unknown }) {
-  const msg = error instanceof Error ? error.message : error ? String(error) : null
+  const msg = error instanceof Error
+    ? error.message
+    : error && typeof error === 'object'
+      ? JSON.stringify(error, null, 2)
+      : error ? String(error) : null
   return (
     <div className="m-8 p-6 rounded-card bg-nl-danger-8 border border-nl-danger/20 text-center">
       <h3 className="font-display font-bold text-nl-danger mb-2">No se pudieron cargar los datos</h3>
