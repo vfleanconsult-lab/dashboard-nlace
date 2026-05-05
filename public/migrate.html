@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Migración NLACE → Supabase</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, sans-serif; background: #f5f5f5; padding: 24px; color: #141414; }
+    .card { background: white; border-radius: 12px; padding: 24px; max-width: 600px; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    p.sub { color: #666; font-size: 14px; margin-bottom: 24px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 16px; font-family: monospace; }
+    button { width: 100%; padding: 12px; background: #5869f7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    #log { margin-top: 20px; background: #111; color: #eee; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 13px; display: none; min-height: 200px; white-space: pre-wrap; overflow-y: auto; max-height: 400px; }
+    .ok  { color: #22c55e; }
+    .err { color: #f87171; }
+    .info { color: #93c5fd; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Migración NLACE → Supabase</h1>
+  <p class="sub">Descarga el Google Sheet e inserta los datos históricos en Supabase.</p>
+
+  <label>Secret Key de Supabase</label>
+  <input type="password" id="secretKey" placeholder="sb_secret_..." autocomplete="off" />
+
+  <button id="btnRun" onclick="runMigration()">Iniciar migración</button>
+  <pre id="log"></pre>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://orjufhwfepojfiqejhfc.supabase.co'
+const NLACE_RUT    = '77743235-4'
+const NLACE_NOMBRE = 'NLACE'
+const CSV_URL      = 'https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970'
+const BATCH_SIZE   = 200
+
+const logEl = document.getElementById('log')
+const btn   = document.getElementById('btnRun')
+
+function log(msg, cls) {
+  logEl.style.display = 'block'
+  const span = document.createElement('span')
+  if (cls) span.className = cls
+  span.textContent = msg + '\n'
+  logEl.appendChild(span)
+  logEl.scrollTop = logEl.scrollHeight
+}
+
+function parseFecha(str) {
+  if (!str || !str.trim()) return null
+  const s = str.trim()
+  const m1 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m1) return `${m1[3]}-${m1[2].padStart(2,'0')}-${m1[1].padStart(2,'0')}`
+  const m2 = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
+  if (m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10)
+  return null
+}
+
+function parseMonto(str) {
+  if (!str) return null
+  const cleaned = String(str).replace(/\./g,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,'')
+  const n = parseFloat(cleaned)
+  return isNaN(n) ? null : n
+}
+
+function parseCSV(text) {
+  const lines = text.split('\n')
+  if (!lines.length) return []
+  const headers = []
+  let cur = '', inQ = false
+  for (let c = 0; c < lines[0].length; c++) {
+    const ch = lines[0][c]
+    if (ch === '"') { inQ = !inQ }
+    else if (ch === ',' && !inQ) { headers.push(cur.trim()); cur = '' }
+    else cur += ch
+  }
+  headers.push(cur.trim())
+
+  const rows = []
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+    const vals = []; cur = ''; inQ = false
+    for (let c = 0; c < line.length; c++) {
+      const ch = line[c]
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = '' }
+      else cur += ch
+    }
+    vals.push(cur)
+    const row = {}
+    headers.forEach((h, idx) => { row[h] = (vals[idx] || '').replace(/^"|"$/g,'').trim() })
+    rows.push(row)
+  }
+  return rows
+}
+
+function toRecord(row, empresaId) {
+  return {
+    empresa_id:          empresaId,
+    cuenta_cble:         row['Cuenta_Cble']          || null,
+    descripcion_cta:     row['Descripcion Cta.'] || row['Descripcion Cta'] || null,
+    clasificacion_gasto: row['Clasificacion_Gasto']  || null,
+    clasificacion_cto:   row['Clasificacion_Cto']    || null,
+    tipo_cuenta:         row['Tipo_Cuenta']           || null,
+    estado:              row['Estado']                || null,
+    mes_economico:       row['Mes_economico']         || null,
+    ano_eco:             row['Ano_eco']               || null,
+    monto_bruto:         parseMonto(row['monto_bruto']),
+    fecha_emision:       parseFecha(row['Fecha_emision']),
+    fecha_pago:          parseFecha(row['Fecha_Pago']),
+    fecha_vencimiento:   parseFecha(row['Fecha_Vencimiento']),
+    cliente:             row['Cliente']               || null,
+  }
+}
+
+async function insertBatches(supabase, table, records) {
+  let inserted = 0
+  for (let i = 0; i < records.length; i += BATCH_SIZE) {
+    const batch = records.slice(i, i + BATCH_SIZE)
+    const { error } = await supabase.from(table).insert(batch)
+    if (error) throw new Error(`${table}: ${error.message}`)
+    inserted += batch.length
+    log(`  ${table}: ${inserted}/${records.length} filas...`, 'info')
+    logEl.lastChild.textContent = `  ${table}: ${inserted}/${records.length} filas...\n`
+  }
+  log(`  ✓ ${table}: ${inserted} filas insertadas`, 'ok')
+  return inserted
+}
+
+async function runMigration() {
+  const secret = document.getElementById('secretKey').value.trim()
+  if (!secret) { alert('Ingresa la Secret Key'); return }
+
+  btn.disabled = true
+  logEl.innerHTML = ''
+
+  try {
+    const supabase = window.supabase.createClient(SUPABASE_URL, secret)
+
+    // 1. Empresa NLACE
+    log('1. Verificando empresa NLACE...')
+    let empresaId
+    const { data: existing } = await supabase.from('empresas').select('id').eq('rut', NLACE_RUT)
+    if (existing && existing.length > 0) {
+      empresaId = existing[0].id
+      log(`   Ya existe → ${empresaId}`, 'ok')
+    } else {
+      const { data: emp, error } = await supabase.from('empresas')
+        .insert({ nombre: NLACE_NOMBRE, rut: NLACE_RUT, plan: 'starter' })
+        .select()
+      if (error) throw new Error('empresas: ' + error.message)
+      empresaId = emp[0].id
+      log(`   Insertada → ${empresaId}`, 'ok')
+    }
+
+    // 2. Descargar CSV
+    log('\n2. Descargando datos de Google Sheets...')
+    const res = await fetch(CSV_URL)
+    if (!res.ok) throw new Error('No se pudo descargar el CSV: ' + res.status)
+    const csvText = await res.text()
+    log(`   CSV descargado (${(csvText.length/1024).toFixed(0)} KB)`, 'ok')
+
+    // 3. Parsear
+    log('\n3. Procesando filas...')
+    const allRows = parseCSV(csvText)
+    const tipos = ['Ingreso','Costo','Gasto','Remun']
+    const filtered = allRows.filter(r => tipos.includes((r['Tipo']||'').trim()))
+    const ventas         = filtered.filter(r => r['Tipo'].trim()==='Ingreso').map(r => toRecord(r, empresaId))
+    const costos         = filtered.filter(r => r['Tipo'].trim()==='Costo').map(r => toRecord(r, empresaId))
+    const gastos         = filtered.filter(r => r['Tipo'].trim()==='Gasto').map(r => toRecord(r, empresaId))
+    const remuneraciones = filtered.filter(r => r['Tipo'].trim()==='Remun').map(r => toRecord(r, empresaId))
+    log(`   Total: ${filtered.length} filas`, 'ok')
+    log(`   • Ventas (Ingreso):  ${ventas.length}`)
+    log(`   • Costos:            ${costos.length}`)
+    log(`   • Gastos:            ${gastos.length}`)
+    log(`   • Remuneraciones:    ${remuneraciones.length}`)
+
+    // 4. Insertar
+    log('\n4. Insertando en Supabase...')
+    let total = 0
+    if (ventas.length)         total += await insertBatches(supabase, 'ventas',         ventas)
+    if (costos.length)         total += await insertBatches(supabase, 'costos',         costos)
+    if (gastos.length)         total += await insertBatches(supabase, 'gastos',         gastos)
+    if (remuneraciones.length) total += await insertBatches(supabase, 'remuneraciones', remuneraciones)
+
+    log(`\n✅ Migración completa: ${total} filas migradas`, 'ok')
+    log(`   empresa_id NLACE: ${empresaId}`, 'ok')
+
+  } catch (e) {
+    log('\n❌ Error: ' + e.message, 'err')
+  } finally {
+    btn.disabled = false
+  }
+}
+</script>
+</body>
+</html>
