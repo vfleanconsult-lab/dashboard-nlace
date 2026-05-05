@@ -105,7 +105,9 @@ CREATE INDEX IF NOT EXISTS remuneraciones_empresa_id_idx ON remuneraciones (empr
 CREATE INDEX IF NOT EXISTS remuneraciones_empresa_mes_idx ON remuneraciones (empresa_id, mes_economico);
 
 -- ── 6. VISTA UNIFICADA ─────────────────────────────────────
-CREATE OR REPLACE VIEW registros_contables AS
+-- security_invoker=on: RLS de las tablas se evalúa con los permisos del usuario
+-- que consulta (no del creador de la vista), necesario para multiempresa.
+CREATE OR REPLACE VIEW registros_contables WITH (security_invoker = on) AS
   SELECT id, empresa_id, 'Ingreso' AS tipo,
          cuenta_cble, descripcion_cta, clasificacion_gasto, clasificacion_cto,
          tipo_cuenta, estado, mes_economico, ano_eco, monto_bruto,
