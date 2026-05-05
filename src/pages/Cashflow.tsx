@@ -142,7 +142,7 @@ function fmt(n: number): string {
 }
 
 export default function Cashflow() {
-  const { rows: allRows, years, loading, error, loadedAt } = useData()
+  const { rows: allRows, years, loading, error, errorDetail, loadedAt } = useData()
   const { state, initialize } = useFilterContext()
   const allMonths = getAllMonths(allRows)
 
@@ -173,7 +173,7 @@ export default function Cashflow() {
   )
 
   if (loading) return <LoadingState />
-  if (error)   return <ErrorState />
+  if (error)   return <ErrorState error={errorDetail} />
 
   return (
     <>

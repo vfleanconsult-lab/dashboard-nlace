@@ -22,7 +22,7 @@ const NOW_MONTH = (() => {
 })()
 
 export default function Ingresos() {
-  const { rows: allRows, years, loading, error, loadedAt } = useData()
+  const { rows: allRows, years, loading, error, errorDetail, loadedAt } = useData()
   const { initialize, state: filterState } = useFilterContext()
   const allMonths = getAllMonths(allRows)
   const { rows, months, label } = useFilter(allRows)
@@ -75,7 +75,7 @@ export default function Ingresos() {
   }, [allRows, effectiveMonth])
 
   if (loading) return <LoadingState />
-  if (error)   return <ErrorState />
+  if (error)   return <ErrorState error={errorDetail} />
 
   const ventas    = D.sumMonto(rows.filter(r => D.isVenta(r) && D.isPagado(r)))
   const otrosIng  = D.sumMonto(rows.filter(r => D.isOtroIngreso(r) && D.isPagado(r)))

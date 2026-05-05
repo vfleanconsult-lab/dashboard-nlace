@@ -6,6 +6,7 @@ interface DataState {
   years: string[]
   loading: boolean
   error: boolean
+  errorDetail: unknown
   loadedAt: Date | null
 }
 
@@ -16,14 +17,15 @@ export function useData(): DataState {
     years: cached.years,
     loading: !cached.loaded,
     error: false,
+    errorDetail: null,
     loadedAt: cached.loadedAt,
   })
 
   useEffect(() => {
     if (cached.loaded) return
     loadData(
-      (rows, years) => setState({ rows, years, loading: false, error: false, loadedAt: getState().loadedAt }),
-      ()            => setState(s => ({ ...s, loading: false, error: true })),
+      (rows, years) => setState({ rows, years, loading: false, error: false, errorDetail: null, loadedAt: getState().loadedAt }),
+      (err)         => setState(s => ({ ...s, loading: false, error: true, errorDetail: err })),
     )
   }, [])
 

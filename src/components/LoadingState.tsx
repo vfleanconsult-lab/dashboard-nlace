@@ -9,13 +9,20 @@ export function LoadingState() {
   )
 }
 
-export function ErrorState() {
+export function ErrorState({ error }: { error?: unknown }) {
+  const msg = error instanceof Error ? error.message : error ? String(error) : null
   return (
     <div className="m-8 p-6 rounded-card bg-nl-danger-8 border border-nl-danger/20 text-center">
       <h3 className="font-display font-bold text-nl-danger mb-2">No se pudieron cargar los datos</h3>
       <p className="text-[12px] font-mono text-nl-500">
-        Verifica que el Google Sheet sea público y el link de exportación esté activo.
+        Error al conectar con Supabase. Verifica la configuración.
       </p>
+      {msg && (
+        <pre className="mt-3 text-left text-[11px] font-mono text-nl-danger bg-nl-danger-4 rounded p-3 overflow-auto max-h-32">
+          {msg}
+        </pre>
+      )}
     </div>
   )
 }
+

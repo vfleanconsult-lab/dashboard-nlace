@@ -29,7 +29,7 @@ function deltaPP(a: number, b: number): number {
 }
 
 export default function Resumen() {
-  const { rows: allRows, years, loading, error, loadedAt } = useData()
+  const { rows: allRows, years, loading, error, errorDetail, loadedAt } = useData()
   const { initialize } = useFilterContext()
   const allMonths = getAllMonths(allRows)
   const { rows, months, label, isCompare, compareRows, compareMonths, compareLabel } = useFilter(allRows)
@@ -37,7 +37,7 @@ export default function Resumen() {
   useEffect(() => { initialize(years) }, [years])
 
   if (loading) return <LoadingState />
-  if (error)   return <ErrorState />
+  if (error)   return <ErrorState error={errorDetail} />
 
   const kpis    = D.calcKPIs(rows)
   const kpisB   = calcCompareKPIs(compareRows)
