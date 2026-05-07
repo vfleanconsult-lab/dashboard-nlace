@@ -60,10 +60,6 @@ export interface ForecastMonth {
   ventasRecurrentes: number
   ventasNuevas: number
   ventasBruta: number
-  cobroRecMes1: number
-  cobroRecMes2: number
-  cobroAnticipo: number
-  cobroSaldo: number
   ventas: number
   otrosIngresos: number
   ingresos: number
@@ -88,10 +84,6 @@ export interface ForecastResult {
   movAvgMonths: string[]
   avgRecHist: number
   lastRemDirector: number
-  ymM1: string
-  ymM2: string
-  ventasM1: number
-  ventasM2: number
 }
 
 // ─────────── Devengado ventas map grouped by mes_economico ───────────
@@ -310,8 +302,6 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     const cobro_anticipo = nuevas_M   * (pctAnticipoNuevas / 100)
     const cobro_saldo    = nuevas_ant * ((100 - pctAnticipoNuevas) / 100) * (1 - pctIncobrableNuevas / 100)
 
-    console.log(`[Forecast] ${ym} cobro_rec_mes1=${Math.round(cobro_rec_mes1)} cobro_rec_mes2=${Math.round(cobro_rec_mes2)} cobro_anticipo=${Math.round(cobro_anticipo)} cobro_saldo=${Math.round(cobro_saldo)} total=${Math.round(cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo)}`)
-
     const ventas = cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo
     const otrosIngresos = 0
     const ingresos      = ventas + otrosIngresos
@@ -340,8 +330,6 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     months.push({
       ym, saldoInicial: prevSaldo,
       ventasRecurrentes, ventasNuevas, ventasBruta,
-      cobroRecMes1: cobro_rec_mes1, cobroRecMes2: cobro_rec_mes2,
-      cobroAnticipo: cobro_anticipo, cobroSaldo: cobro_saldo,
       ventas, otrosIngresos, ingresos,
       costoVenta, otrosGastosExpl, costos,
       gastosAdm, serviciosComp, publicidad, representacion, locomocion, legales, gastos,
@@ -352,9 +340,5 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     prevSaldo = saldoFinal
   }
 
-  return {
-    months, projectedMonths, movAvgMonths, avgRecHist, lastRemDirector,
-    ymM1: lastClosedYM, ymM2: penultClosedYM,
-    ventasM1: ventasRealesUltimoMes, ventasM2: ventasRealesPenultimoMes,
-  }
+  return { months, projectedMonths, movAvgMonths, avgRecHist, lastRemDirector }
 }
