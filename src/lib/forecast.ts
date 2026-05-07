@@ -5,8 +5,8 @@ export const SALDO_INICIAL_JAN_2026 = 2_109_833
 // ─────────── Types ───────────
 
 export interface DotacionCambio {
-  mesIndex: number   // 0-based from forecast start
-  cantidad: number   // new quantity effective from this month
+  mesIndex: number
+  cantidad: number
 }
 
 export interface DotacionCargo {
@@ -17,13 +17,14 @@ export interface DotacionCargo {
 }
 
 export interface ForecastAssumptions {
-  saldoInicialManual: number | null
-  ventasPorMes: number[]           // per projected month; 0 = use avgVentasHist
-  pctRecurrente: number            // 0–100
-  churnMensual: number             // 0–15
-  pctIncobrable: number            // 0–10
+  saldoInicial: number                 // manual, default 0
+  ventasPorMes: (number | null)[]      // null = usar avgVentasHist; 0 = cero explícito
+  pctRecurrente: number                // 0–100
+  churnMensual: number                 // 0–15
+  pctIncobrable: number                // 0–10
   dotacion: DotacionCargo[]
-  pctIncrementoSoftware: number    // 0–100
+  remDirectorPorMes: (number | null)[] // null = usar lastRemDirector; 0 = cero explícito
+  pctIncrementoSoftware: number        // 0–100
   saldoMinimo: number
 }
 
@@ -36,12 +37,13 @@ export const DEFAULT_DOTACION: DotacionCargo[] = [
 ]
 
 export const DEFAULT_ASSUMPTIONS: ForecastAssumptions = {
-  saldoInicialManual: null,
+  saldoInicial: 0,
   ventasPorMes: [],
   pctRecurrente: 60,
   churnMensual: 2,
   pctIncobrable: 1.5,
   dotacion: DEFAULT_DOTACION,
+  remDirectorPorMes: [],
   pctIncrementoSoftware: 50,
   saldoMinimo: 3_000_000,
 }
@@ -70,16 +72,17 @@ export interface ForecastMonth {
 
 export interface ForecastResult {
   months: ForecastMonth[]
-  saldoInicialCalculado: number
   projectedMonths: string[]
   movAvgMonths: string[]
   avgVentasHist: number
+  lastRemDirector: number
 }
 
-// ─────────── Internal: historical snapshot by mes_economico ───────────
+// ─────────── Monthly totals map (all history, all years) ───────────
 
 interface MonthData {
   ventas: number
+  otrosGastosExpl: number
   gastosAdm: number
   gastosExpl: number
   publicidad: number
@@ -87,31 +90,17 @@ interface MonthData {
   locomocion: number
   legales: number
   remDirector: number
-  saldoFinal: number
 }
 
-function buildHistMap(allRows: D.Row[], lastYM: string): Map<string, MonthData> {
+function buildMonthlyMap(allRows: D.Row[]): Map<string, MonthData> {
   const grouped: Record<string, D.Row[]> = {}
   for (const r of allRows) {
     const ym = D.getMonth(r)
-    if (ym && ym >= '2026-01' && ym <= lastYM) {
-      ;(grouped[ym] ??= []).push(r)
-    }
-  }
-
-  const allYMs: string[] = []
-  let cy = 2026, cm = 1
-  const [maxY, maxM] = lastYM.split('-').map(Number)
-  while (cy < maxY || (cy === maxY && cm <= maxM)) {
-    allYMs.push(`${cy}-${String(cm).padStart(2, '0')}`)
-    cm++; if (cm > 12) { cm = 1; cy++ }
+    if (ym) { (grouped[ym] ??= []).push(r) }
   }
 
   const result = new Map<string, MonthData>()
-  let prevFinal = SALDO_INICIAL_JAN_2026
-
-  for (const ym of allYMs) {
-    const rows = grouped[ym] ?? []
+  for (const [ym, rows] of Object.entries(grouped)) {
     const sumIng = (fn: (r: D.Row) => boolean) =>
       rows.filter(r => (D.getEstado(r) === 'Pagada' || D.getEstado(r) === 'Pagada_parcial') && fn(r))
           .reduce((s, r) => s + D.getMonto(r), 0)
@@ -119,32 +108,40 @@ function buildHistMap(allRows: D.Row[], lastYM: string): Map<string, MonthData> 
       rows.filter(r => D.getEstado(r) === 'Pagada' && fn(r))
           .reduce((s, r) => s + D.getMonto(r), 0)
 
-    const ventas          = sumIng(r => D.getCuenta(r) === '5101-01')
-    const otrosIngresos   = sumIng(r => D.getCuenta(r) === '5201-03')
-    const ingresos        = ventas + otrosIngresos
-    const costoVenta      = sumPag(r => D.getCuenta(r) === '4101-01')
-    const otrosGastosExpl = sumPag(r => D.getCuenta(r) === '4101-09')
-    const costos          = costoVenta + otrosGastosExpl
-    const gastosAdm       = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Adm')
-    const gastosExpl      = sumPag(r => D.getTipoCuenta(r) === 'Gasto_ERP')
-    const publicidad      = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Mkg')
-    const representacion  = sumPag(r => D.getCuenta(r) === '4201-09')
-    const locomocion      = sumPag(r => D.getCuenta(r) === '4201-26')
-    const legales         = sumPag(r => D.getCuenta(r) === '4201-12')
-    const remDirector     = sumPag(r => D.getCuenta(r) === '4401-02')
-    const gastos          = gastosAdm + gastosExpl + publicidad + representacion + locomocion + legales
-
-    const saldoFinal = (ym === '2026-01' ? SALDO_INICIAL_JAN_2026 : prevFinal)
-                     + ingresos - costos - gastos - remDirector
-
     result.set(ym, {
-      ventas, gastosAdm, gastosExpl, publicidad,
-      representacion, locomocion, legales, remDirector, saldoFinal,
+      ventas:          sumIng(r => D.getCuenta(r) === '5101-01'),
+      otrosGastosExpl: sumPag(r =>
+        D.getCuenta(r) === '4101-09' ||
+        D.getDesc(r).toUpperCase().includes('OTROS GASTOS DE EXPLOTACION')
+      ),
+      gastosAdm:       sumPag(r => D.getTipoCuenta(r) === 'Gasto_Adm'),
+      gastosExpl:      sumPag(r => D.getTipoCuenta(r) === 'Gasto_ERP'),
+      publicidad:      sumPag(r => D.getTipoCuenta(r) === 'Gasto_Mkg'),
+      representacion:  sumPag(r => D.getCuenta(r) === '4201-09'),
+      locomocion:      sumPag(r => D.getCuenta(r) === '4201-26'),
+      legales:         sumPag(r => D.getCuenta(r) === '4201-12'),
+      remDirector:     sumPag(r => D.getCuenta(r) === '4401-02'),
     })
-    prevFinal = saldoFinal
   }
-
   return result
+}
+
+// Last N months before beforeYM that have a non-zero value for key
+function movAvg(
+  map: Map<string, MonthData>,
+  beforeYM: string,
+  key: keyof MonthData,
+  n = 3
+): { value: number; months: string[] } {
+  const entries = Array.from(map.entries())
+    .filter(([ym, d]) => ym < beforeYM && (d[key] as number) > 0)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, n)
+  if (entries.length === 0) return { value: 0, months: [] }
+  return {
+    value:  entries.reduce((s, [, d]) => s + (d[key] as number), 0) / entries.length,
+    months: entries.map(([ym]) => ym),
+  }
 }
 
 // ─────────── Dotación cost for month index ───────────
@@ -168,89 +165,80 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   const currentYear  = now.getFullYear()
   const currentMonth = now.getMonth() + 1
 
-  // Forecast starts from current month through Dec of current year
   const projectedMonths: string[] = []
   for (let m = currentMonth; m <= 12; m++) {
     projectedMonths.push(`${currentYear}-${String(m).padStart(2, '0')}`)
   }
+  const firstYM = projectedMonths[0] ?? `${currentYear}-${String(currentMonth).padStart(2, '0')}`
 
-  // Last closed month = month before current
+  // Diagnostic: unique cuenta_cble in Costo rows
+  const costoCuentas = [...new Set(
+    allRows.filter(r => D.getTipo(r) === 'Costo').map(r => D.getCuenta(r))
+  )].sort()
+  console.log('[Forecast] cuenta_cble en filas Costo:', costoCuentas)
+
+  const monthMap = buildMonthlyMap(allRows)
+
+  // Moving averages: last 3 months with data before first projected month (any year)
+  const avgVentasRes    = movAvg(monthMap, firstYM, 'ventas')
+  const avgVentasHist   = avgVentasRes.value
+  const movAvgMonths    = avgVentasRes.months
+
+  const avgOtrosGastosExpl = movAvg(monthMap, firstYM, 'otrosGastosExpl').value
+  const avgGastosAdm       = movAvg(monthMap, firstYM, 'gastosAdm').value
+  const avgGastosExpl      = movAvg(monthMap, firstYM, 'gastosExpl').value
+  const avgPublicidad      = movAvg(monthMap, firstYM, 'publicidad').value
+  const avgRepresentacion  = movAvg(monthMap, firstYM, 'representacion').value
+  const avgLocomocion      = movAvg(monthMap, firstYM, 'locomocion').value
+  const avgLegales         = movAvg(monthMap, firstYM, 'legales').value
+  const lastRemDirector    = movAvg(monthMap, firstYM, 'remDirector', 1).value
+
+  // Seed previous-month cobranza from last closed month's actual ventas
   let lcMonth = currentMonth - 1
   let lcYear  = currentYear
   if (lcMonth < 1) { lcMonth = 12; lcYear-- }
-  const lastClosedYM = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
-
-  const histMap               = buildHistMap(allRows, lastClosedYM)
-  const saldoInicialCalculado = histMap.get(lastClosedYM)?.saldoFinal ?? SALDO_INICIAL_JAN_2026
-  const saldoInicial          = assumptions.saldoInicialManual ?? saldoInicialCalculado
-
-  // Moving average: 3 months before current
-  const movAvgMonths: string[] = []
-  for (let i = 3; i >= 1; i--) {
-    let m = currentMonth - i
-    let y = currentYear
-    while (m < 1) { m += 12; y-- }
-    movAvgMonths.push(`${y}-${String(m).padStart(2, '0')}`)
-  }
-
-  const validAvgMonths = movAvgMonths.filter(ym => {
-    const d = histMap.get(ym)
-    return d != null && (d.ventas + d.gastosAdm + d.gastosExpl + d.remDirector) > 0
-  })
-
-  const avg = (key: keyof MonthData): number => {
-    if (validAvgMonths.length === 0) return 0
-    const vals = validAvgMonths.map(ym => histMap.get(ym)![key] as number)
-    return vals.reduce((a, b) => a + b, 0) / validAvgMonths.length
-  }
-
-  const avgVentasHist     = avg('ventas')
-  const avgGastosAdm      = avg('gastosAdm')
-  const avgGastosExpl     = avg('gastosExpl')
-  const avgPublicidad     = avg('publicidad')
-  const avgRepresentacion = avg('representacion')
-  const avgLocomocion     = avg('locomocion')
-  const avgLegales        = avg('legales')
-
-  // remDirector: last non-zero value in movAvgMonths
-  let lastRemDirector = 0
-  for (const ym of [...movAvgMonths].reverse()) {
-    const d = histMap.get(ym)
-    if (d && d.remDirector > 0) { lastRemDirector = d.remDirector; break }
-  }
+  const lastClosedYM   = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
+  const lastClosedData = monthMap.get(lastClosedYM)
+  const lastVentasReal = lastClosedData && lastClosedData.ventas > 0
+                        ? lastClosedData.ventas
+                        : avgVentasHist
 
   const incobrFactor = 1 - assumptions.pctIncobrable / 100
   const pctRec       = assumptions.pctRecurrente / 100
   const pctProy      = 1 - pctRec
 
-  // Seed prev-month cobranza values from historical average
-  let prevRecBruta  = avgVentasHist * pctRec
-  let prevProyBruta = avgVentasHist * pctProy
-  let prevSaldo     = saldoInicial
+  const ultimaVentaRealRecurrente = lastVentasReal * pctRec
+  const ultimaVentaRealProyecto   = lastVentasReal * pctProy
+  console.log('[Forecast] ultimaVentaRealRecurrente:', ultimaVentaRealRecurrente, 'ultimaVentaRealProyecto:', ultimaVentaRealProyecto)
+
+  let prevRecBruta  = ultimaVentaRealRecurrente
+  let prevProyBruta = ultimaVentaRealProyecto
+  let prevSaldo     = assumptions.saldoInicial
 
   const months: ForecastMonth[] = []
 
   for (let i = 0; i < projectedMonths.length; i++) {
     const ym = projectedMonths[i]
 
-    const baseSales   = (assumptions.ventasPorMes[i] ?? 0) > 0
-                        ? assumptions.ventasPorMes[i]
-                        : avgVentasHist
-    const churnFactor = Math.pow(1 - assumptions.churnMensual / 100, i)
-    const ventasBruta = baseSales * churnFactor
+    // null / undefined → avg; 0 → explicit zero
+    const ventaTotal_M = assumptions.ventasPorMes[i] ?? avgVentasHist
 
-    const recBruta  = ventasBruta * pctRec
-    const proyBruta = ventasBruta * pctProy
+    // Churn applies to recurrentes only
+    const factorChurn  = Math.pow(1 - assumptions.churnMensual / 100, i + 1)
+    const ventaRec_M   = ventaTotal_M * pctRec * factorChurn
+    const ventaProy_M  = ventaTotal_M * pctProy
+    const ventasBruta  = ventaRec_M + ventaProy_M
 
-    // Recurrentes cobrados el mes siguiente; proyectos: 50% anticipo + 50% saldo del mes anterior
-    const ventas        = prevRecBruta * incobrFactor
-                        + proyBruta * 0.5
-                        + prevProyBruta * 0.5 * incobrFactor
+    const ventas = prevRecBruta * incobrFactor
+                 + ventaProy_M * 0.5
+                 + prevProyBruta * 0.5 * incobrFactor
     const otrosIngresos = 0
     const ingresos      = ventas + otrosIngresos
 
+    console.log(`[Forecast] ${ym} ventasMes=${ventaTotal_M} ingresoCobrado=${Math.round(ventas)}`)
+
     const costoVenta      = computeCostoEquipo(assumptions.dotacion, i)
-    const otrosGastosExpl = 0
+    const otrosGastosExpl = avgOtrosGastosExpl
     const costos          = costoVenta + otrosGastosExpl
 
     const delta         = ventasBruta - avgVentasHist
@@ -264,8 +252,10 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     const legales        = avgLegales
     const gastos         = gastosAdm + serviciosComp + publicidad + representacion + locomocion + legales
 
-    const remDirector = lastRemDirector
-    const saldoFinal  = prevSaldo + ingresos - costos - gastos - remDirector
+    // null / undefined → lastRemDirector; 0 → explicit zero
+    const remDirector = assumptions.remDirectorPorMes[i] ?? lastRemDirector
+
+    const saldoFinal = prevSaldo + ingresos - costos - gastos - remDirector
 
     months.push({
       ym, saldoInicial: prevSaldo, ventasBruta,
@@ -277,9 +267,9 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     })
 
     prevSaldo     = saldoFinal
-    prevRecBruta  = recBruta
-    prevProyBruta = proyBruta
+    prevRecBruta  = ventaRec_M
+    prevProyBruta = ventaProy_M
   }
 
-  return { months, saldoInicialCalculado, projectedMonths, movAvgMonths: validAvgMonths, avgVentasHist }
+  return { months, projectedMonths, movAvgMonths, avgVentasHist, lastRemDirector }
 }
