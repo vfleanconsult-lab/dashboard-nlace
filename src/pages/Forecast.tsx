@@ -97,7 +97,7 @@ export default function Forecast() {
     [allRows, assumptions],
   )
 
-  const { months, projectedMonths, avgRecHist, lastRemDirector, ymM1, ymM2, ventasM1, ventasM2 } = result
+  const { months, projectedMonths, avgRecHist, lastRemDirector } = result
 
   // Resize per-month arrays when projected window changes
   useEffect(() => {
@@ -202,34 +202,6 @@ export default function Forecast() {
             icon={mesesBajoMin > 0 ? AlertTriangle : undefined}
           />
         </div>
-
-        {/* ── Diagnóstico de cobranza ── */}
-        {months.length > 0 && (() => {
-          const m0 = months[0]
-          return (
-            <div className="bg-nl-bg border border-nl-border-soft rounded-[10px] px-4 py-3 text-[11px] font-mono text-nl-500 space-y-1">
-              <p className="text-[9px] uppercase tracking-[0.1em] text-nl-400 mb-2">Diagnóstico cobranza — {D.monthLabel(m0.ym)}</p>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-0.5">
-                <span>Ventas reales {D.monthLabel(ymM1)} (M-1)</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(ventasM1)}</span>
-                <span>Ventas reales {D.monthLabel(ymM2)} (M-2)</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(ventasM2)}</span>
-                <span>Promedio histórico 3m</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(avgRecHist)}</span>
-                <span className="mt-1 pt-1 border-t border-nl-border-soft">Cobro rec. mes 1 ({assumptions.pctCobroMes1Rec}%)</span>
-                <span className="mt-1 pt-1 border-t border-nl-border-soft text-nl-text tabular-nums">{D.formatCLP(m0.cobroRecMes1)}</span>
-                <span>Cobro rec. mes 2 ({assumptions.pctCobroMes2Rec}%)</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(m0.cobroRecMes2)}</span>
-                <span>Anticipo nuevas ({assumptions.pctAnticipoNuevas}%)</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(m0.cobroAnticipo)}</span>
-                <span>Saldo nuevas M-1</span>
-                <span className="text-nl-text tabular-nums">{D.formatCLP(m0.cobroSaldo)}</span>
-                <span className="font-semibold text-nl-text">Total cobrado {D.monthLabel(m0.ym)}</span>
-                <span className="font-semibold text-nl-text tabular-nums">{D.formatCLP(m0.ventas)}</span>
-              </div>
-            </div>
-          )
-        })()}
 
         {/* ── View toggle ── */}
         <div className="flex items-center gap-1 p-1 bg-nl-bg rounded-[12px] w-fit">
