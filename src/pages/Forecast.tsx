@@ -97,15 +97,18 @@ export default function Forecast() {
     [allRows, assumptions],
   )
 
-  const { months, saldoInicialCalculado, projectedMonths, avgVentasHist } = result
+  const { months, projectedMonths, avgVentasHist, lastRemDirector } = result
 
-  // Resize ventasPorMes array when projected window changes
+  // Resize per-month arrays when projected window changes
   useEffect(() => {
     setAssumptions(prev => {
       const len = projectedMonths.length
-      if (prev.ventasPorMes.length === len) return prev
-      const newVpm = Array.from({ length: len }, (_, i) => prev.ventasPorMes[i] ?? 0)
-      return { ...prev, ventasPorMes: newVpm }
+      const vpmOk = prev.ventasPorMes.length === len
+      const rdmOk = prev.remDirectorPorMes.length === len
+      if (vpmOk && rdmOk) return prev
+      const newVpm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.ventasPorMes[i] ?? null)
+      const newRdm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.remDirectorPorMes[i] ?? null)
+      return { ...prev, ventasPorMes: newVpm, remDirectorPorMes: newRdm }
     })
   }, [projectedMonths.length])
 
@@ -442,9 +445,9 @@ export default function Forecast() {
         onClose={() => setPanelOpen(false)}
         assumptions={assumptions}
         onChange={setAssumptions}
-        saldoInicialCalculado={saldoInicialCalculado}
         projectedMonths={projectedMonths}
         avgVentasHist={avgVentasHist}
+        lastRemDirector={lastRemDirector}
       />
     </>
   )

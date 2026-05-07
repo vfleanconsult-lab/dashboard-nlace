@@ -8,9 +8,9 @@ interface Props {
   onClose: () => void
   assumptions: ForecastAssumptions
   onChange: (a: ForecastAssumptions) => void
-  saldoInicialCalculado: number
   projectedMonths: string[]
   avgVentasHist: number
+  lastRemDirector: number
 }
 
 function SectionTitle({ children }: { children: string }) {
@@ -66,7 +66,7 @@ function CurrencyField({
 }
 
 export default function ForecastPanel({
-  isOpen, onClose, assumptions, onChange, saldoInicialCalculado, projectedMonths, avgVentasHist,
+  isOpen, onClose, assumptions, onChange, projectedMonths, avgVentasHist, lastRemDirector,
 }: Props) {
   const upd = <K extends keyof ForecastAssumptions>(key: K, value: ForecastAssumptions[K]) =>
     onChange({ ...assumptions, [key]: value })
@@ -89,14 +89,20 @@ export default function ForecastPanel({
       i !== ci ? c : { ...c, cambios: c.cambios.filter((_, j) => j !== chi) }
     ))
 
-  const setVentasMes = (i: number, v: number) => {
-    const arr = [...(assumptions.ventasPorMes ?? [])]
-    while (arr.length <= i) arr.push(0)
+  // null = vacío (usar avg), número = valor explícito (incluyendo 0)
+  const setVentasMes = (i: number, v: number | null) => {
+    const arr: (number | null)[] = [...(assumptions.ventasPorMes ?? [])]
+    while (arr.length <= i) arr.push(null)
     arr[i] = v
     upd('ventasPorMes', arr)
   }
 
-  const saldoDisplay = assumptions.saldoInicialManual ?? saldoInicialCalculado
+  const setRemDirectorMes = (i: number, v: number | null) => {
+    const arr: (number | null)[] = [...(assumptions.remDirectorPorMes ?? [])]
+    while (arr.length <= i) arr.push(null)
+    arr[i] = v
+    upd('remDirectorPorMes', arr)
+  }
 
   return (
     <>
@@ -126,25 +132,20 @@ export default function ForecastPanel({
           {/* ── 1. Saldo inicial ── */}
           <section className="space-y-3">
             <SectionTitle>Saldo inicial</SectionTitle>
-            <div className="px-3 py-2 bg-nl-bg rounded-[8px]">
-              <p className="text-[10px] font-mono text-nl-400">Calculado desde Supabase</p>
-              <p className="text-[13px] font-body tabular-nums font-semibold text-nl-text mt-0.5">
-                {formatCLP(saldoInicialCalculado)}
-              </p>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-mono text-nl-500">Saldo de caja actual ($)</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-mono text-nl-400 pointer-events-none">$</span>
+                <input
+                  type="number"
+                  value={assumptions.saldoInicial}
+                  step={100_000}
+                  onClick={e => (e.target as HTMLInputElement).select()}
+                  onChange={e => upd('saldoInicial', parseFloat(e.target.value) || 0)}
+                  className="w-full pl-6 pr-3 py-2 text-[12px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[8px] focus:outline-none focus:border-nl-primary"
+                />
+              </div>
             </div>
-            <CurrencyField
-              label="Ajuste manual"
-              value={saldoDisplay}
-              onChange={v => upd('saldoInicialManual', v)}
-            />
-            {assumptions.saldoInicialManual !== null && (
-              <button
-                onClick={() => upd('saldoInicialManual', null)}
-                className="text-[10px] font-mono text-nl-primary hover:text-nl-primary/80 transition-colors"
-              >
-                ↺ Restaurar valor calculado
-              </button>
-            )}
           </section>
 
           {/* ── 2. Ventas por mes ── */}
@@ -154,7 +155,8 @@ export default function ForecastPanel({
               {projectedMonths.map((ym, i) => {
                 const [year, mon] = ym.split('-')
                 const label = `${MONTH_LABELS[parseInt(mon) - 1]} ${year}`
-                const val = assumptions.ventasPorMes[i] ?? 0
+                // null / undefined → mostrar vacío; 0 → mostrar "0"
+                const val = assumptions.ventasPorMes[i]
                 return (
                   <div key={ym} className="flex items-center gap-3">
                     <span className="text-[10px] font-mono text-nl-500 w-14 shrink-0">{label}</span>
@@ -164,10 +166,10 @@ export default function ForecastPanel({
                         type="number"
                         min={0}
                         step={100_000}
-                        value={val === 0 ? '' : val}
-                        placeholder={avgVentasHist > 0 ? String(Math.round(avgVentasHist)) : '0'}
+                        value={val == null ? '' : val}
+                        placeholder={avgVentasHist > 0 ? String(Math.round(avgVentasHist)) : ''}
                         onClick={e => (e.target as HTMLInputElement).select()}
-                        onChange={e => setVentasMes(i, parseFloat(e.target.value) || 0)}
+                        onChange={e => setVentasMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
                         className="w-full pl-6 pr-2 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
                       />
                     </div>
@@ -177,7 +179,7 @@ export default function ForecastPanel({
             </div>
             {avgVentasHist > 0 && (
               <p className="text-[9px] font-mono text-nl-400">
-                Vacío = prom. histórico ({formatCLP(avgVentasHist, true)})
+                Vacío = prom. histórico ({formatCLP(avgVentasHist, true)}) · 0 = mes sin ventas
               </p>
             )}
           </section>
@@ -292,6 +294,44 @@ export default function ForecastPanel({
                 </div>
               ))}
             </div>
+
+            {/* Remuneración Director — por mes */}
+            <div className="mt-2 pt-4 border-t border-nl-border-soft space-y-2">
+              <div>
+                <p className="text-[11px] font-body text-nl-text font-medium">Remuneración Director</p>
+                <p className="text-[9px] font-mono text-nl-400 mt-0.5">Variable según disponibilidad de caja</p>
+              </div>
+              <div className="space-y-2">
+                {projectedMonths.map((ym, i) => {
+                  const [year, mon] = ym.split('-')
+                  const label = `${MONTH_LABELS[parseInt(mon) - 1]} ${year}`
+                  const val = assumptions.remDirectorPorMes[i]
+                  return (
+                    <div key={ym} className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono text-nl-500 w-14 shrink-0">{label}</span>
+                      <div className="relative flex-1">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-nl-400 pointer-events-none">$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={100_000}
+                          value={val == null ? '' : val}
+                          placeholder={lastRemDirector > 0 ? String(Math.round(lastRemDirector)) : '0'}
+                          onClick={e => (e.target as HTMLInputElement).select()}
+                          onChange={e => setRemDirectorMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
+                          className="w-full pl-6 pr-2 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {lastRemDirector > 0 && (
+                <p className="text-[9px] font-mono text-nl-400">
+                  Vacío = último mes cerrado ({formatCLP(lastRemDirector, true)}) · 0 = no cobrar
+                </p>
+              )}
+            </div>
           </section>
 
           {/* ── 5. Gastos variables ── */}
@@ -323,7 +363,8 @@ export default function ForecastPanel({
           <button
             onClick={() => onChange({
               ...DEFAULT_ASSUMPTIONS,
-              ventasPorMes: Array(projectedMonths.length).fill(0),
+              ventasPorMes: Array(projectedMonths.length).fill(null),
+              remDirectorPorMes: Array(projectedMonths.length).fill(null),
               dotacion: DEFAULT_DOTACION.map(c => ({ ...c, cambios: [] })),
             })}
             className="flex items-center gap-2 text-[11px] font-mono text-nl-400 hover:text-nl-text transition-colors"
