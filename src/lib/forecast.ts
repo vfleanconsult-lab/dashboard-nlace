@@ -60,6 +60,10 @@ export interface ForecastMonth {
   ventasRecurrentes: number
   ventasNuevas: number
   ventasBruta: number
+  cobroRecMes1: number
+  cobroRecMes2: number
+  cobroAnticipo: number
+  cobroSaldo: number
   ventas: number
   otrosIngresos: number
   ingresos: number
@@ -84,6 +88,10 @@ export interface ForecastResult {
   movAvgMonths: string[]
   avgRecHist: number
   lastRemDirector: number
+  ymM1: string
+  ymM2: string
+  ventasM1: number
+  ventasM2: number
 }
 
 // ─────────── Monthly totals map (all history, all years) ───────────
@@ -304,6 +312,8 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     months.push({
       ym, saldoInicial: prevSaldo,
       ventasRecurrentes, ventasNuevas, ventasBruta,
+      cobroRecMes1: cobro_rec_mes1, cobroRecMes2: cobro_rec_mes2,
+      cobroAnticipo: cobro_anticipo, cobroSaldo: cobro_saldo,
       ventas, otrosIngresos, ingresos,
       costoVenta, otrosGastosExpl, costos,
       gastosAdm, serviciosComp, publicidad, representacion, locomocion, legales, gastos,
@@ -314,5 +324,9 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     prevSaldo = saldoFinal
   }
 
-  return { months, projectedMonths, movAvgMonths, avgRecHist, lastRemDirector }
+  return {
+    months, projectedMonths, movAvgMonths, avgRecHist, lastRemDirector,
+    ymM1: lastClosedYM, ymM2: penultClosedYM,
+    ventasM1: ventasRealesUltimoMes, ventasM2: ventasRealesPenultimoMes,
+  }
 }
