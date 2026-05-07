@@ -195,15 +195,28 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   const avgLegales         = movAvg(monthMap, firstYM, 'legales').value
   const lastRemDirector    = movAvg(monthMap, firstYM, 'remDirector', 1).value
 
-  // Last closed month real ventas — seeds recurrentes base for collection seeding
+  // Last two closed months — seeds M-1 and M-2 collection for first projected month
   let lcMonth = currentMonth - 1
   let lcYear  = currentYear
   if (lcMonth < 1) { lcMonth = 12; lcYear-- }
-  const lastClosedYM          = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
-  const lastClosedData        = monthMap.get(lastClosedYM)
-  const ventasRealesUltimoMes = lastClosedData && lastClosedData.ventas > 0
-                                ? lastClosedData.ventas
-                                : avgRecHist
+  const lastClosedYM = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
+
+  let lc2Month = lcMonth - 1
+  let lc2Year  = lcYear
+  if (lc2Month < 1) { lc2Month = 12; lc2Year-- }
+  const penultClosedYM = `${lc2Year}-${String(lc2Month).padStart(2, '0')}`
+
+  const lastClosedData   = monthMap.get(lastClosedYM)
+  const penultClosedData = monthMap.get(penultClosedYM)
+
+  const ventasRealesUltimoMes    = lastClosedData && lastClosedData.ventas > 0
+                                   ? lastClosedData.ventas : avgRecHist
+  const ventasRealesPenultimoMes = penultClosedData && penultClosedData.ventas > 0
+                                   ? penultClosedData.ventas : avgRecHist
+
+  console.log('[Forecast] lastClosedYM (M-1):', lastClosedYM, '→ ventas:', ventasRealesUltimoMes)
+  console.log('[Forecast] penultClosedYM (M-2):', penultClosedYM, '→ ventas:', ventasRealesPenultimoMes)
+  console.log('[Forecast] avgRecHist:', avgRecHist)
 
   const {
     pctAnticipoNuevas, pctCobroMes1Rec, pctCobroMes2Rec,
@@ -216,9 +229,8 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   for (let i = 0; i < projectedMonths.length; i++) {
     const ym = projectedMonths[i]
 
-    // MRR decay factors
-    const factorMRR_M   = Math.pow(1 - tasaPerdidaMRR / 100, i + 1)
-    const factorMRR_ant = Math.pow(1 - tasaPerdidaMRR / 100, i)
+    // MRR decay — only used for display column, NOT in collection formula
+    const factorMRR_M = Math.pow(1 - tasaPerdidaMRR / 100, i + 1)
 
     // Raw inputs for this month
     const recBase_M = assumptions.ventasRecurrentesMes[i] !== null && assumptions.ventasRecurrentesMes[i] !== undefined
@@ -240,9 +252,9 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
           ? (assumptions.ventasRecurrentesMes[i - 1] as number)
           : avgRecHist)
 
-    // Two-months-ago recurrentes base
+    // M-2 recurrentes base (used for cobro_rec_mes2)
     const recBase_ant2 = i === 0
-      ? 0
+      ? ventasRealesPenultimoMes                                                   // March real
       : i === 1
         ? ventasRealesUltimoMes
         : (assumptions.ventasRecurrentesMes[i - 2] !== null && assumptions.ventasRecurrentesMes[i - 2] !== undefined
@@ -254,19 +266,17 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
           ? (assumptions.ventasNuevasMes[i - 1] as number)
           : 0)
 
-    // Cobranza: recurrentes collected this month (from M-1 and M-2 invoicing)
-    const cobro_rec_mes1 = recBase_ant * factorMRR_ant * (pctCobroMes1Rec / 100)
-    const cobro_rec_mes2 = (
-      i >= 2 ? recBase_ant2 * factorMRR_ant :
-      i === 1 ? recBase_ant2 * 1 :           // Math.pow(1-t/100, 0) = 1
-      0
-    ) * (pctCobroMes2Rec / 100)
+    // Cobranza recurrentes: M-1 × pct1 + M-2 × pct2 (sin factor MRR en cobro)
+    const cobro_rec_mes1 = recBase_ant  * (pctCobroMes1Rec / 100)
+    const cobro_rec_mes2 = recBase_ant2 * (pctCobroMes2Rec / 100)
 
-    // Cobranza: nuevas ventas (anticipo este mes + saldo del mes anterior)
-    const cobro_anticipo = nuevas_M  * (pctAnticipoNuevas / 100)
+    // Cobranza nuevas: anticipo este mes + saldo del mes anterior
+    const cobro_anticipo = nuevas_M   * (pctAnticipoNuevas / 100)
     const cobro_saldo    = nuevas_ant * ((100 - pctAnticipoNuevas) / 100) * (1 - pctIncobrableNuevas / 100)
 
-    const ventas     = cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo
+    console.log(`[Forecast] ${ym} cobro_rec_mes1=${Math.round(cobro_rec_mes1)} cobro_rec_mes2=${Math.round(cobro_rec_mes2)} cobro_anticipo=${Math.round(cobro_anticipo)} cobro_saldo=${Math.round(cobro_saldo)} total=${Math.round(cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo)}`)
+
+    const ventas = cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo
     const otrosIngresos = 0
     const ingresos      = ventas + otrosIngresos
 
