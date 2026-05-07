@@ -8,6 +8,7 @@ import Gastos from './pages/Gastos'
 import Cobranzas from './pages/Cobranzas'
 import EstadoResultado from './pages/EstadoResultado'
 import Cashflow from './pages/Cashflow'
+import Forecast from './pages/Forecast'
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="cobranzas" element={<Cobranzas />} />
           <Route path="estado-resultado" element={<EstadoResultado />} />
           <Route path="cashflow" element={<Cashflow />} />
+          <Route path="forecast" element={<Forecast />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
