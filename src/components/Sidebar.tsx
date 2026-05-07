@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/cobranzas',         label: 'Cobranzas',         Icon: Clock           },
   { to: '/estado-resultado',  label: 'Estado Resultado',  Icon: BarChart2       },
   { to: '/cashflow',          label: 'Cashflow',          Icon: ArrowLeftRight  },
+  { to: '/forecast',          label: 'Forecast',          Icon: TrendingUp      },
 ]
 
 export default function Sidebar() {
