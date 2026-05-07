@@ -9,7 +9,7 @@ interface Props {
   assumptions: ForecastAssumptions
   onChange: (a: ForecastAssumptions) => void
   projectedMonths: string[]
-  avgVentasHist: number
+  avgRecHist: number
   lastRemDirector: number
 }
 
@@ -66,7 +66,7 @@ function CurrencyField({
 }
 
 export default function ForecastPanel({
-  isOpen, onClose, assumptions, onChange, projectedMonths, avgVentasHist, lastRemDirector,
+  isOpen, onClose, assumptions, onChange, projectedMonths, avgRecHist, lastRemDirector,
 }: Props) {
   const upd = <K extends keyof ForecastAssumptions>(key: K, value: ForecastAssumptions[K]) =>
     onChange({ ...assumptions, [key]: value })
@@ -89,12 +89,18 @@ export default function ForecastPanel({
       i !== ci ? c : { ...c, cambios: c.cambios.filter((_, j) => j !== chi) }
     ))
 
-  // null = vacío (usar avg), número = valor explícito (incluyendo 0)
-  const setVentasMes = (i: number, v: number | null) => {
-    const arr: (number | null)[] = [...(assumptions.ventasPorMes ?? [])]
+  const setRecurrentesMes = (i: number, v: number | null) => {
+    const arr: (number | null)[] = [...(assumptions.ventasRecurrentesMes ?? [])]
     while (arr.length <= i) arr.push(null)
     arr[i] = v
-    upd('ventasPorMes', arr)
+    upd('ventasRecurrentesMes', arr)
+  }
+
+  const setNuevasMes = (i: number, v: number | null) => {
+    const arr: (number | null)[] = [...(assumptions.ventasNuevasMes ?? [])]
+    while (arr.length <= i) arr.push(null)
+    arr[i] = v
+    upd('ventasNuevasMes', arr)
   }
 
   const setRemDirectorMes = (i: number, v: number | null) => {
@@ -111,7 +117,7 @@ export default function ForecastPanel({
       )}
 
       <aside className={[
-        'fixed top-0 right-0 bottom-0 z-50 w-[420px] bg-nl-white border-l border-nl-border-soft shadow-2xl flex flex-col transition-transform duration-300 ease-in-out',
+        'fixed top-0 right-0 bottom-0 z-50 w-[440px] bg-nl-white border-l border-nl-border-soft shadow-2xl flex flex-col transition-transform duration-300 ease-in-out',
         isOpen ? 'translate-x-0' : 'translate-x-full',
       ].join(' ')}>
 
@@ -129,9 +135,9 @@ export default function ForecastPanel({
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
-          {/* ── 1. Saldo inicial ── */}
+          {/* ① Punto de partida */}
           <section className="space-y-3">
-            <SectionTitle>Saldo inicial</SectionTitle>
+            <SectionTitle>① Punto de partida</SectionTitle>
             <div className="space-y-1.5">
               <label className="block text-[11px] font-mono text-nl-500">Saldo de caja actual ($)</label>
               <div className="relative">
@@ -148,77 +154,120 @@ export default function ForecastPanel({
             </div>
           </section>
 
-          {/* ── 2. Ventas por mes ── */}
+          {/* ② Ventas por mes */}
           <section className="space-y-3">
-            <SectionTitle>Ventas mensuales</SectionTitle>
+            <SectionTitle>② Ventas por mes</SectionTitle>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-14 shrink-0" />
+              <span className="flex-1 text-[9px] font-mono text-nl-400 text-center">Recurrentes</span>
+              <span className="flex-1 text-[9px] font-mono text-nl-400 text-center">Nuevas ventas</span>
+            </div>
             <div className="space-y-2">
               {projectedMonths.map((ym, i) => {
                 const [year, mon] = ym.split('-')
                 const label = `${MONTH_LABELS[parseInt(mon) - 1]} ${year}`
-                // null / undefined → mostrar vacío; 0 → mostrar "0"
-                const val = assumptions.ventasPorMes[i]
+                const valRec = assumptions.ventasRecurrentesMes[i]
+                const valNuv = assumptions.ventasNuevasMes[i]
                 return (
-                  <div key={ym} className="flex items-center gap-3">
+                  <div key={ym} className="flex items-center gap-2">
                     <span className="text-[10px] font-mono text-nl-500 w-14 shrink-0">{label}</span>
                     <div className="relative flex-1">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-nl-400 pointer-events-none">$</span>
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-nl-400 pointer-events-none">$</span>
                       <input
                         type="number"
                         min={0}
                         step={100_000}
-                        value={val == null ? '' : val}
-                        placeholder={avgVentasHist > 0 ? String(Math.round(avgVentasHist)) : ''}
+                        value={valRec == null ? '' : valRec}
+                        placeholder={avgRecHist > 0 ? String(Math.round(avgRecHist)) : ''}
                         onClick={e => (e.target as HTMLInputElement).select()}
-                        onChange={e => setVentasMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
-                        className="w-full pl-6 pr-2 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
+                        onChange={e => setRecurrentesMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
+                        className="w-full pl-5 pr-1 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
+                      />
+                    </div>
+                    <div className="relative flex-1">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-mono text-nl-400 pointer-events-none">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100_000}
+                        value={valNuv == null ? '' : valNuv}
+                        placeholder="0"
+                        onClick={e => (e.target as HTMLInputElement).select()}
+                        onChange={e => setNuevasMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
+                        className="w-full pl-5 pr-1 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
                       />
                     </div>
                   </div>
                 )
               })}
             </div>
-            {avgVentasHist > 0 && (
+            {avgRecHist > 0 && (
               <p className="text-[9px] font-mono text-nl-400">
-                Vacío = prom. histórico ({formatCLP(avgVentasHist, true)}) · 0 = mes sin ventas
+                Recurrentes vacío = prom. histórico ({formatCLP(avgRecHist, true)}) · Nuevas vacío = $0
               </p>
             )}
           </section>
 
-          {/* ── 3. Cobranza ── */}
+          {/* ③ Política de cobranza */}
           <section className="space-y-4">
-            <SectionTitle>Cobranza</SectionTitle>
+            <SectionTitle>③ Política de cobranza</SectionTitle>
             <SliderField
-              label="% ventas recurrentes (MRR)"
-              value={assumptions.pctRecurrente}
+              label="Cobro recurrentes mes 1 (%)"
+              value={assumptions.pctCobroMes1Rec}
               min={0} max={100} step={5}
-              display={`${assumptions.pctRecurrente}%`}
-              onChange={v => upd('pctRecurrente', v)}
+              display={`${assumptions.pctCobroMes1Rec}%`}
+              onChange={v => upd('pctCobroMes1Rec', v)}
             />
             <SliderField
-              label="Churn mensual"
-              value={assumptions.churnMensual}
-              min={0} max={15} step={0.5}
-              display={`${assumptions.churnMensual}%`}
-              onChange={v => upd('churnMensual', v)}
+              label="Cobro recurrentes mes 2 (%)"
+              value={assumptions.pctCobroMes2Rec}
+              min={0} max={50} step={1}
+              display={`${assumptions.pctCobroMes2Rec}%`}
+              onChange={v => upd('pctCobroMes2Rec', v)}
             />
             <SliderField
-              label="% incobrable"
-              value={assumptions.pctIncobrable}
+              label="Anticipo nuevas ventas (%)"
+              value={assumptions.pctAnticipoNuevas}
+              min={0} max={100} step={5}
+              display={`${assumptions.pctAnticipoNuevas}%`}
+              onChange={v => upd('pctAnticipoNuevas', v)}
+            />
+            <SliderField
+              label="Incobrable nuevas ventas (%)"
+              value={assumptions.pctIncobrableNuevas}
               min={0} max={10} step={0.5}
-              display={`${assumptions.pctIncobrable}%`}
-              onChange={v => upd('pctIncobrable', v)}
+              display={`${assumptions.pctIncobrableNuevas}%`}
+              onChange={v => upd('pctIncobrableNuevas', v)}
             />
             <div className="px-3 py-2 bg-nl-bg rounded-[8px]">
               <p className="text-[9px] font-mono text-nl-400 leading-relaxed">
-                Recurrentes: cobro íntegro mes siguiente<br />
-                Proyectos: 50% anticipo + 50% saldo al cobrar
+                Recurrentes: {assumptions.pctCobroMes1Rec}% mes 1 + {assumptions.pctCobroMes2Rec}% mes 2<br />
+                Nuevas ventas: {assumptions.pctAnticipoNuevas}% anticipo + {100 - assumptions.pctAnticipoNuevas}% saldo
               </p>
             </div>
           </section>
 
-          {/* ── 4. Dotación ── */}
+          {/* ④ Pérdida MRR */}
+          <section className="space-y-4">
+            <SectionTitle>④ Pérdida MRR</SectionTitle>
+            <SliderField
+              label="Pérdida MRR mensual (%)"
+              value={assumptions.tasaPerdidaMRR}
+              min={0} max={15} step={0.5}
+              display={`${assumptions.tasaPerdidaMRR}%`}
+              onChange={v => upd('tasaPerdidaMRR', v)}
+            />
+            <div className="px-3 py-2 bg-nl-bg rounded-[8px]">
+              <p className="text-[9px] font-mono text-nl-400 leading-relaxed">
+                Tasa de cancelación o reducción mensual del MRR recurrente.
+                0% = sin pérdida · 2% típico para SaaS estable.
+              </p>
+            </div>
+          </section>
+
+          {/* ⑤ Dotación */}
           <section className="space-y-3">
-            <SectionTitle>Dotación</SectionTitle>
+            <SectionTitle>⑤ Dotación</SectionTitle>
             <div className="space-y-3">
               {assumptions.dotacion.map((cargo, ci) => (
                 <div key={ci} className="border border-nl-border-soft rounded-[8px] p-3 space-y-2">
@@ -294,49 +343,47 @@ export default function ForecastPanel({
                 </div>
               ))}
             </div>
-
-            {/* Remuneración Director — por mes */}
-            <div className="mt-2 pt-4 border-t border-nl-border-soft space-y-2">
-              <div>
-                <p className="text-[11px] font-body text-nl-text font-medium">Remuneración Director</p>
-                <p className="text-[9px] font-mono text-nl-400 mt-0.5">Variable según disponibilidad de caja</p>
-              </div>
-              <div className="space-y-2">
-                {projectedMonths.map((ym, i) => {
-                  const [year, mon] = ym.split('-')
-                  const label = `${MONTH_LABELS[parseInt(mon) - 1]} ${year}`
-                  const val = assumptions.remDirectorPorMes[i]
-                  return (
-                    <div key={ym} className="flex items-center gap-3">
-                      <span className="text-[10px] font-mono text-nl-500 w-14 shrink-0">{label}</span>
-                      <div className="relative flex-1">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-nl-400 pointer-events-none">$</span>
-                        <input
-                          type="number"
-                          min={0}
-                          step={100_000}
-                          value={val == null ? '' : val}
-                          placeholder={lastRemDirector > 0 ? String(Math.round(lastRemDirector)) : '0'}
-                          onClick={e => (e.target as HTMLInputElement).select()}
-                          onChange={e => setRemDirectorMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
-                          className="w-full pl-6 pr-2 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {lastRemDirector > 0 && (
-                <p className="text-[9px] font-mono text-nl-400">
-                  Vacío = último mes cerrado ({formatCLP(lastRemDirector, true)}) · 0 = no cobrar
-                </p>
-              )}
-            </div>
           </section>
 
-          {/* ── 5. Gastos variables ── */}
+          {/* ⑥ Remuneración Director */}
+          <section className="space-y-3">
+            <SectionTitle>⑥ Remuneración Director</SectionTitle>
+            <p className="text-[9px] font-mono text-nl-400 -mt-1">Variable según disponibilidad de caja</p>
+            <div className="space-y-2">
+              {projectedMonths.map((ym, i) => {
+                const [year, mon] = ym.split('-')
+                const label = `${MONTH_LABELS[parseInt(mon) - 1]} ${year}`
+                const val = assumptions.remDirectorPorMes[i]
+                return (
+                  <div key={ym} className="flex items-center gap-3">
+                    <span className="text-[10px] font-mono text-nl-500 w-14 shrink-0">{label}</span>
+                    <div className="relative flex-1">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-nl-400 pointer-events-none">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step={100_000}
+                        value={val == null ? '' : val}
+                        placeholder={lastRemDirector > 0 ? String(Math.round(lastRemDirector)) : '0'}
+                        onClick={e => (e.target as HTMLInputElement).select()}
+                        onChange={e => setRemDirectorMes(i, e.target.value === '' ? null : parseFloat(e.target.value))}
+                        className="w-full pl-6 pr-2 py-1.5 text-[11px] font-body tabular-nums text-nl-text bg-nl-bg border border-nl-border-soft rounded-[6px] focus:outline-none focus:border-nl-primary"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {lastRemDirector > 0 && (
+              <p className="text-[9px] font-mono text-nl-400">
+                Vacío = último mes cerrado ({formatCLP(lastRemDirector, true)}) · 0 = no cobrar
+              </p>
+            )}
+          </section>
+
+          {/* ⑦ Gastos variables */}
           <section className="space-y-4">
-            <SectionTitle>Gastos variables</SectionTitle>
+            <SectionTitle>⑦ Gastos variables</SectionTitle>
             <SliderField
               label="% incremento software por ventas"
               value={assumptions.pctIncrementoSoftware}
@@ -346,13 +393,13 @@ export default function ForecastPanel({
             />
           </section>
 
-          {/* ── 6. Alertas ── */}
+          {/* ⑧ Alertas */}
           <section className="space-y-3">
-            <SectionTitle>Alertas</SectionTitle>
+            <SectionTitle>⑧ Alertas</SectionTitle>
             <CurrencyField
-              label="Saldo mínimo de alerta"
-              value={assumptions.saldoMinimo}
-              onChange={v => upd('saldoMinimo', v)}
+              label="Saldo mínimo de alerta ($)"
+              value={assumptions.minimoAlerta}
+              onChange={v => upd('minimoAlerta', v)}
             />
           </section>
 
@@ -363,7 +410,8 @@ export default function ForecastPanel({
           <button
             onClick={() => onChange({
               ...DEFAULT_ASSUMPTIONS,
-              ventasPorMes: Array(projectedMonths.length).fill(null),
+              ventasRecurrentesMes: Array(projectedMonths.length).fill(null),
+              ventasNuevasMes: Array(projectedMonths.length).fill(null),
               remDirectorPorMes: Array(projectedMonths.length).fill(null),
               dotacion: DEFAULT_DOTACION.map(c => ({ ...c, cambios: [] })),
             })}

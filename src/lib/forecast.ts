@@ -17,15 +17,18 @@ export interface DotacionCargo {
 }
 
 export interface ForecastAssumptions {
-  saldoInicial: number                 // manual, default 0
-  ventasPorMes: (number | null)[]      // null = usar avgVentasHist; 0 = cero explícito
-  pctRecurrente: number                // 0–100
-  churnMensual: number                 // 0–15
-  pctIncobrable: number                // 0–10
+  saldoInicial: number
+  ventasRecurrentesMes: (number | null)[]   // null = use avgRecHist; 0 = explicit zero
+  ventasNuevasMes: (number | null)[]         // null = 0; 0 = explicit zero
+  pctAnticipoNuevas: number                  // 0–100, default 50
+  pctCobroMes1Rec: number                    // 0–100, default 85
+  pctCobroMes2Rec: number                    // 0–50, default 12
+  pctIncobrableNuevas: number                // 0–10, default 2
+  tasaPerdidaMRR: number                     // 0–15, default 2
   dotacion: DotacionCargo[]
-  remDirectorPorMes: (number | null)[] // null = usar lastRemDirector; 0 = cero explícito
-  pctIncrementoSoftware: number        // 0–100
-  saldoMinimo: number
+  remDirectorPorMes: (number | null)[]       // null = use lastRemDirector; 0 = explicit zero
+  pctIncrementoSoftware: number              // 0–100, default 50
+  minimoAlerta: number
 }
 
 export const DEFAULT_DOTACION: DotacionCargo[] = [
@@ -38,19 +41,24 @@ export const DEFAULT_DOTACION: DotacionCargo[] = [
 
 export const DEFAULT_ASSUMPTIONS: ForecastAssumptions = {
   saldoInicial: 0,
-  ventasPorMes: [],
-  pctRecurrente: 60,
-  churnMensual: 2,
-  pctIncobrable: 1.5,
+  ventasRecurrentesMes: [],
+  ventasNuevasMes: [],
+  pctAnticipoNuevas: 50,
+  pctCobroMes1Rec: 85,
+  pctCobroMes2Rec: 12,
+  pctIncobrableNuevas: 2,
+  tasaPerdidaMRR: 2,
   dotacion: DEFAULT_DOTACION,
   remDirectorPorMes: [],
   pctIncrementoSoftware: 50,
-  saldoMinimo: 3_000_000,
+  minimoAlerta: 3_000_000,
 }
 
 export interface ForecastMonth {
   ym: string
   saldoInicial: number
+  ventasRecurrentes: number
+  ventasNuevas: number
   ventasBruta: number
   ventas: number
   otrosIngresos: number
@@ -74,7 +82,7 @@ export interface ForecastResult {
   months: ForecastMonth[]
   projectedMonths: string[]
   movAvgMonths: string[]
-  avgVentasHist: number
+  avgRecHist: number
   lastRemDirector: number
 }
 
@@ -171,18 +179,12 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   }
   const firstYM = projectedMonths[0] ?? `${currentYear}-${String(currentMonth).padStart(2, '0')}`
 
-  // Diagnostic: unique cuenta_cble in Costo rows
-  const costoCuentas = [...new Set(
-    allRows.filter(r => D.getTipo(r) === 'Costo').map(r => D.getCuenta(r))
-  )].sort()
-  console.log('[Forecast] cuenta_cble en filas Costo:', costoCuentas)
-
   const monthMap = buildMonthlyMap(allRows)
 
-  // Moving averages: last 3 months with data before first projected month (any year)
-  const avgVentasRes    = movAvg(monthMap, firstYM, 'ventas')
-  const avgVentasHist   = avgVentasRes.value
-  const movAvgMonths    = avgVentasRes.months
+  // Moving averages: last 3 months with data before first projected month
+  const avgVentasRes = movAvg(monthMap, firstYM, 'ventas')
+  const avgRecHist   = avgVentasRes.value
+  const movAvgMonths = avgVentasRes.months
 
   const avgOtrosGastosExpl = movAvg(monthMap, firstYM, 'otrosGastosExpl').value
   const avgGastosAdm       = movAvg(monthMap, firstYM, 'gastosAdm').value
@@ -193,55 +195,86 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   const avgLegales         = movAvg(monthMap, firstYM, 'legales').value
   const lastRemDirector    = movAvg(monthMap, firstYM, 'remDirector', 1).value
 
-  // Seed previous-month cobranza from last closed month's actual ventas
+  // Last closed month real ventas — seeds recurrentes base for collection seeding
   let lcMonth = currentMonth - 1
   let lcYear  = currentYear
   if (lcMonth < 1) { lcMonth = 12; lcYear-- }
-  const lastClosedYM   = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
-  const lastClosedData = monthMap.get(lastClosedYM)
-  const lastVentasReal = lastClosedData && lastClosedData.ventas > 0
-                        ? lastClosedData.ventas
-                        : avgVentasHist
+  const lastClosedYM          = `${lcYear}-${String(lcMonth).padStart(2, '0')}`
+  const lastClosedData        = monthMap.get(lastClosedYM)
+  const ventasRealesUltimoMes = lastClosedData && lastClosedData.ventas > 0
+                                ? lastClosedData.ventas
+                                : avgRecHist
 
-  const incobrFactor = 1 - assumptions.pctIncobrable / 100
-  const pctRec       = assumptions.pctRecurrente / 100
-  const pctProy      = 1 - pctRec
+  const {
+    pctAnticipoNuevas, pctCobroMes1Rec, pctCobroMes2Rec,
+    pctIncobrableNuevas, tasaPerdidaMRR,
+  } = assumptions
 
-  const ultimaVentaRealRecurrente = lastVentasReal * pctRec
-  const ultimaVentaRealProyecto   = lastVentasReal * pctProy
-  console.log('[Forecast] ultimaVentaRealRecurrente:', ultimaVentaRealRecurrente, 'ultimaVentaRealProyecto:', ultimaVentaRealProyecto)
-
-  let prevRecBruta  = ultimaVentaRealRecurrente
-  let prevProyBruta = ultimaVentaRealProyecto
   let prevSaldo     = assumptions.saldoInicial
-
   const months: ForecastMonth[] = []
 
   for (let i = 0; i < projectedMonths.length; i++) {
     const ym = projectedMonths[i]
 
-    // null / undefined → avg; 0 → explicit zero
-    const ventaTotal_M = assumptions.ventasPorMes[i] ?? avgVentasHist
+    // MRR decay factors
+    const factorMRR_M   = Math.pow(1 - tasaPerdidaMRR / 100, i + 1)
+    const factorMRR_ant = Math.pow(1 - tasaPerdidaMRR / 100, i)
 
-    // Churn applies to recurrentes only
-    const factorChurn  = Math.pow(1 - assumptions.churnMensual / 100, i + 1)
-    const ventaRec_M   = ventaTotal_M * pctRec * factorChurn
-    const ventaProy_M  = ventaTotal_M * pctProy
-    const ventasBruta  = ventaRec_M + ventaProy_M
+    // Raw inputs for this month
+    const recBase_M = assumptions.ventasRecurrentesMes[i] !== null && assumptions.ventasRecurrentesMes[i] !== undefined
+      ? (assumptions.ventasRecurrentesMes[i] as number)
+      : avgRecHist
+    const nuevas_M  = assumptions.ventasNuevasMes[i] !== null && assumptions.ventasNuevasMes[i] !== undefined
+      ? (assumptions.ventasNuevasMes[i] as number)
+      : 0
 
-    const ventas = prevRecBruta * incobrFactor
-                 + ventaProy_M * 0.5
-                 + prevProyBruta * 0.5 * incobrFactor
+    // Ventas for display (recurrentes after MRR decay)
+    const ventasRecurrentes = recBase_M * factorMRR_M
+    const ventasNuevas      = nuevas_M
+    const ventasBruta       = ventasRecurrentes + ventasNuevas
+
+    // Previous month recurrentes base (for collections in this month)
+    const recBase_ant = i === 0
+      ? ventasRealesUltimoMes
+      : (assumptions.ventasRecurrentesMes[i - 1] !== null && assumptions.ventasRecurrentesMes[i - 1] !== undefined
+          ? (assumptions.ventasRecurrentesMes[i - 1] as number)
+          : avgRecHist)
+
+    // Two-months-ago recurrentes base
+    const recBase_ant2 = i === 0
+      ? 0
+      : i === 1
+        ? ventasRealesUltimoMes
+        : (assumptions.ventasRecurrentesMes[i - 2] !== null && assumptions.ventasRecurrentesMes[i - 2] !== undefined
+            ? (assumptions.ventasRecurrentesMes[i - 2] as number)
+            : avgRecHist)
+
+    const nuevas_ant = i === 0 ? 0
+      : (assumptions.ventasNuevasMes[i - 1] !== null && assumptions.ventasNuevasMes[i - 1] !== undefined
+          ? (assumptions.ventasNuevasMes[i - 1] as number)
+          : 0)
+
+    // Cobranza: recurrentes collected this month (from M-1 and M-2 invoicing)
+    const cobro_rec_mes1 = recBase_ant * factorMRR_ant * (pctCobroMes1Rec / 100)
+    const cobro_rec_mes2 = (
+      i >= 2 ? recBase_ant2 * factorMRR_ant :
+      i === 1 ? recBase_ant2 * 1 :           // Math.pow(1-t/100, 0) = 1
+      0
+    ) * (pctCobroMes2Rec / 100)
+
+    // Cobranza: nuevas ventas (anticipo este mes + saldo del mes anterior)
+    const cobro_anticipo = nuevas_M  * (pctAnticipoNuevas / 100)
+    const cobro_saldo    = nuevas_ant * ((100 - pctAnticipoNuevas) / 100) * (1 - pctIncobrableNuevas / 100)
+
+    const ventas     = cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo
     const otrosIngresos = 0
     const ingresos      = ventas + otrosIngresos
-
-    console.log(`[Forecast] ${ym} ventasMes=${ventaTotal_M} ingresoCobrado=${Math.round(ventas)}`)
 
     const costoVenta      = computeCostoEquipo(assumptions.dotacion, i)
     const otrosGastosExpl = avgOtrosGastosExpl
     const costos          = costoVenta + otrosGastosExpl
 
-    const delta         = ventasBruta - avgVentasHist
+    const delta         = ventasBruta - avgRecHist
     const softDelta     = delta > 0 ? delta * assumptions.pctIncrementoSoftware / 100 : 0
     const serviciosComp = avgGastosExpl + softDelta
 
@@ -252,24 +285,24 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
     const legales        = avgLegales
     const gastos         = gastosAdm + serviciosComp + publicidad + representacion + locomocion + legales
 
-    // null / undefined → lastRemDirector; 0 → explicit zero
-    const remDirector = assumptions.remDirectorPorMes[i] ?? lastRemDirector
+    const remDirector = assumptions.remDirectorPorMes[i] !== null && assumptions.remDirectorPorMes[i] !== undefined
+      ? (assumptions.remDirectorPorMes[i] as number)
+      : lastRemDirector
 
     const saldoFinal = prevSaldo + ingresos - costos - gastos - remDirector
 
     months.push({
-      ym, saldoInicial: prevSaldo, ventasBruta,
+      ym, saldoInicial: prevSaldo,
+      ventasRecurrentes, ventasNuevas, ventasBruta,
       ventas, otrosIngresos, ingresos,
       costoVenta, otrosGastosExpl, costos,
       gastosAdm, serviciosComp, publicidad, representacion, locomocion, legales, gastos,
       remDirector, saldoFinal,
-      belowMinimum: saldoFinal < assumptions.saldoMinimo,
+      belowMinimum: saldoFinal < assumptions.minimoAlerta,
     })
 
-    prevSaldo     = saldoFinal
-    prevRecBruta  = ventaRec_M
-    prevProyBruta = ventaProy_M
+    prevSaldo = saldoFinal
   }
 
-  return { months, projectedMonths, movAvgMonths, avgVentasHist, lastRemDirector }
+  return { months, projectedMonths, movAvgMonths, avgRecHist, lastRemDirector }
 }

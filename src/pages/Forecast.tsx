@@ -97,18 +97,20 @@ export default function Forecast() {
     [allRows, assumptions],
   )
 
-  const { months, projectedMonths, avgVentasHist, lastRemDirector } = result
+  const { months, projectedMonths, avgRecHist, lastRemDirector } = result
 
   // Resize per-month arrays when projected window changes
   useEffect(() => {
     setAssumptions(prev => {
       const len = projectedMonths.length
-      const vpmOk = prev.ventasPorMes.length === len
+      const vrmOk = prev.ventasRecurrentesMes.length === len
+      const vnmOk = prev.ventasNuevasMes.length === len
       const rdmOk = prev.remDirectorPorMes.length === len
-      if (vpmOk && rdmOk) return prev
-      const newVpm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.ventasPorMes[i] ?? null)
+      if (vrmOk && vnmOk && rdmOk) return prev
+      const newVrm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.ventasRecurrentesMes[i] ?? null)
+      const newVnm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.ventasNuevasMes[i] ?? null)
       const newRdm: (number | null)[] = Array.from({ length: len }, (_, i) => prev.remDirectorPorMes[i] ?? null)
-      return { ...prev, ventasPorMes: newVpm, remDirectorPorMes: newRdm }
+      return { ...prev, ventasRecurrentesMes: newVrm, ventasNuevasMes: newVnm, remDirectorPorMes: newRdm }
     })
   }, [projectedMonths.length])
 
@@ -185,15 +187,15 @@ export default function Forecast() {
             label="Saldo final proyectado"
             value={D.formatCLP(saldoFinalDec, true)}
             sub={`Dic ${currentYear}`}
-            accent={saldoFinalDec >= assumptions.saldoMinimo ? 'success' : 'danger'}
-            trend={saldoFinalDec >= assumptions.saldoMinimo ? 'up' : 'down'}
+            accent={saldoFinalDec >= assumptions.minimoAlerta ? 'success' : 'danger'}
+            trend={saldoFinalDec >= assumptions.minimoAlerta ? 'up' : 'down'}
           />
           <KpiCard
             label="Meses bajo mínimo"
             value={String(mesesBajoMin)}
             sub={
               mesesBajoMin > 0
-                ? `Umbral: ${D.formatCLP(assumptions.saldoMinimo, true)}`
+                ? `Umbral: ${D.formatCLP(assumptions.minimoAlerta, true)}`
                 : 'Sin alertas de liquidez'
             }
             accent={mesesBajoMin > 0 ? 'danger' : 'success'}
@@ -372,7 +374,7 @@ export default function Forecast() {
 
             <ChartCard
               title="Saldo final proyectado"
-              subtitle={`Línea de referencia: mínimo ${D.formatCLP(assumptions.saldoMinimo, true)}`}
+              subtitle={`Línea de referencia: mínimo ${D.formatCLP(assumptions.minimoAlerta, true)}`}
               legend={[{ color: COLORS.primary, label: 'Saldo final' }]}
               height={280}
             >
@@ -406,7 +408,7 @@ export default function Forecast() {
                     formatter={(v: number) => [D.formatCLP(v), 'Saldo final']}
                   />
                   <ReferenceLine
-                    y={assumptions.saldoMinimo}
+                    y={assumptions.minimoAlerta}
                     stroke="#dc2626"
                     strokeDasharray="5 3"
                     label={{
@@ -446,7 +448,7 @@ export default function Forecast() {
         assumptions={assumptions}
         onChange={setAssumptions}
         projectedMonths={projectedMonths}
-        avgVentasHist={avgVentasHist}
+        avgRecHist={avgRecHist}
         lastRemDirector={lastRemDirector}
       />
     </>
