@@ -97,7 +97,17 @@ export default function Forecast() {
     [allRows, assumptions],
   )
 
-  const { months, saldoInicialCalculado, projectedMonths } = result
+  const { months, saldoInicialCalculado, projectedMonths, avgVentasHist } = result
+
+  // Resize ventasPorMes array when projected window changes
+  useEffect(() => {
+    setAssumptions(prev => {
+      const len = projectedMonths.length
+      if (prev.ventasPorMes.length === len) return prev
+      const newVpm = Array.from({ length: len }, (_, i) => prev.ventasPorMes[i] ?? 0)
+      return { ...prev, ventasPorMes: newVpm }
+    })
+  }, [projectedMonths.length])
 
   // ── KPIs ──
   const totalIngresos = months.reduce((s, m) => s + m.ingresos, 0)
@@ -434,6 +444,7 @@ export default function Forecast() {
         onChange={setAssumptions}
         saldoInicialCalculado={saldoInicialCalculado}
         projectedMonths={projectedMonths}
+        avgVentasHist={avgVentasHist}
       />
     </>
   )
