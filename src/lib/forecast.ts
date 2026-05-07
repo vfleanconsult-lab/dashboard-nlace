@@ -94,7 +94,40 @@ export interface ForecastResult {
   ventasM2: number
 }
 
-// ─────────── Monthly totals map (all history, all years) ───────────
+// ─────────── Cash ventas map grouped by fecha_pago ───────────
+// For cash-flow forecasting: cash received = grouped by payment date, not invoice date
+
+function buildCashVentasMap(allRows: D.Row[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const r of allRows) {
+    if (D.getCuenta(r) !== '5101-01') continue
+    const estado = D.getEstado(r)
+    if (estado !== 'Pagada' && estado !== 'Pagada_parcial') continue
+    const fp = D.getFechaPago(r)
+    if (!fp) continue
+    const ym = fp.slice(0, 7)  // YYYY-MM from YYYY-MM-DD
+    map.set(ym, (map.get(ym) ?? 0) + D.getMonto(r))
+  }
+  return map
+}
+
+function avgCashVentas(
+  map: Map<string, number>,
+  beforeYM: string,
+  n = 3
+): { value: number; months: string[] } {
+  const entries = Array.from(map.entries())
+    .filter(([ym, v]) => ym < beforeYM && v > 0)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, n)
+  if (entries.length === 0) return { value: 0, months: [] }
+  return {
+    value:  entries.reduce((s, [, v]) => s + v, 0) / entries.length,
+    months: entries.map(([ym]) => ym),
+  }
+}
+
+// ─────────── Monthly totals map (expenses by mes_economico) ───────────
 
 interface MonthData {
   ventas: number
@@ -187,12 +220,14 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   }
   const firstYM = projectedMonths[0] ?? `${currentYear}-${String(currentMonth).padStart(2, '0')}`
 
-  const monthMap = buildMonthlyMap(allRows)
+  // Cash-based map for ventas (grouped by fecha_pago = actual cash received)
+  const cashMap = buildCashVentasMap(allRows)
+  const avgVentasCashRes = avgCashVentas(cashMap, firstYM)
+  const avgRecHist       = avgVentasCashRes.value
+  const movAvgMonths     = avgVentasCashRes.months
 
-  // Moving averages: last 3 months with data before first projected month
-  const avgVentasRes = movAvg(monthMap, firstYM, 'ventas')
-  const avgRecHist   = avgVentasRes.value
-  const movAvgMonths = avgVentasRes.months
+  // Expense averages still use mes_economico (accrual basis for cost estimation)
+  const monthMap = buildMonthlyMap(allRows)
 
   const avgOtrosGastosExpl = movAvg(monthMap, firstYM, 'otrosGastosExpl').value
   const avgGastosAdm       = movAvg(monthMap, firstYM, 'gastosAdm').value
@@ -214,13 +249,9 @@ export function buildForecast(allRows: D.Row[], assumptions: ForecastAssumptions
   if (lc2Month < 1) { lc2Month = 12; lc2Year-- }
   const penultClosedYM = `${lc2Year}-${String(lc2Month).padStart(2, '0')}`
 
-  const lastClosedData   = monthMap.get(lastClosedYM)
-  const penultClosedData = monthMap.get(penultClosedYM)
-
-  const ventasRealesUltimoMes    = lastClosedData && lastClosedData.ventas > 0
-                                   ? lastClosedData.ventas : avgRecHist
-  const ventasRealesPenultimoMes = penultClosedData && penultClosedData.ventas > 0
-                                   ? penultClosedData.ventas : avgRecHist
+  // Use cash-based lookup (fecha_pago) for actual cash received in each month
+  const ventasRealesUltimoMes    = cashMap.get(lastClosedYM)    ?? avgRecHist
+  const ventasRealesPenultimoMes = cashMap.get(penultClosedYM)  ?? avgRecHist
 
   console.log('[Forecast] lastClosedYM (M-1):', lastClosedYM, '→ ventas:', ventasRealesUltimoMes)
   console.log('[Forecast] penultClosedYM (M-2):', penultClosedYM, '→ ventas:', ventasRealesPenultimoMes)
