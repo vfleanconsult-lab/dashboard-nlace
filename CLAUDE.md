@@ -59,7 +59,18 @@ src/
     ├── Gastos.tsx          # Gastos operacionales — Bar + Donut + tabla
     ├── Cobranzas.tsx       # DSO — LineChart + distribución por tramo + ranking clientes
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
-    └── Cashflow.tsx        # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
+    ├── Cashflow.tsx        # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
+    └── Forecast.tsx        # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
+```
+
+Y los archivos de soporte del Forecast:
+
+```
+src/
+├── lib/
+│   └── forecast.ts         # Tipos, lógica de cálculo y buildForecast(). NO usa Supabase directamente — recibe allRows.
+└── components/
+    └── ForecastPanel.tsx   # Panel lateral (drawer) con 8 secciones de supuestos configurables
 ```
 
 ## Fuente de datos — Supabase
@@ -266,6 +277,95 @@ const effectiveMonth = localMonth || (salesMonthsInYear.includes(NOW_MONTH)
 | Locomoción | `Cuenta_Cble === "4201-26"` + Estado Pagada |
 | Legales y Notariales | `Cuenta_Cble === "4201-12"` + Estado Pagada |
 | Remuneración Director | `Cuenta_Cble === "4401-02"` + Estado Pagada |
+
+## Vista Forecast — reglas específicas
+
+`Forecast.tsx` proyecta el flujo de caja desde el mes actual hasta diciembre del año en curso, usando datos reales como semilla y supuestos configurables por el usuario.
+
+### Arquitectura
+
+- **`forecast.ts`** — toda la lógica de cálculo. Recibe `allRows: D.Row[]` (ya cargado en memoria) y `ForecastAssumptions`. No hace queries a Supabase.
+- **`ForecastPanel.tsx`** — drawer lateral con 8 secciones de supuestos.
+- **`Forecast.tsx`** — página: KPIs, tabla mensual, gráficos, abre el panel.
+
+### Supuestos configurables (`ForecastAssumptions`)
+
+| Campo | Default | Descripción |
+|-------|---------|-------------|
+| `saldoInicial` | `0` | Saldo de caja actual — ingresado manualmente por el usuario |
+| `ventasRecurrentesMes[]` | `null` | Ventas recurrentes por mes. `null` = promedio histórico devengado |
+| `ventasNuevasMes[]` | `null` | Nuevas ventas por mes. `null` = $0 |
+| `pctCobroMes1Rec` | `85` | % de recurrentes M-1 cobrado este mes |
+| `pctCobroMes2Rec` | `12` | % de recurrentes M-2 cobrado este mes |
+| `pctAnticipoNuevas` | `50` | % de nuevas ventas cobrado como anticipo en el mismo mes |
+| `pctIncobrableNuevas` | `2` | % del saldo de nuevas ventas que no se recupera |
+| `tasaPerdidaMRR` | `2` | % de decay mensual aplicado al MRR proyectado (solo display) |
+| `dotacion[]` | 5 cargos | Costo mensual del equipo, con cambios de cantidad programados |
+| `remDirectorPorMes[]` | `null` | Remuneración director por mes. `null` = último mes cerrado |
+| `pctIncrementoSoftware` | `50` | % del delta de ventas sobre el avg histórico que se traslada a servicios computacionales |
+| `minimoAlerta` | `3.000.000` | Umbral de saldo mínimo — meses bajo este valor se marcan en rojo |
+
+### Modelo de cobranza — lógica central
+
+Las ventas se registran en devengado (`mes_economico`, todos los estados incl. `Emitida`) y se modelan como cobros futuros:
+
+```typescript
+// Mes proyectado i:
+cobro_rec_mes1  = ventasRecurrentes[M-1] * (pctCobroMes1Rec / 100)
+cobro_rec_mes2  = ventasRecurrentes[M-2] * (pctCobroMes2Rec / 100)  // 0 en i=0 (ya en saldoInicial)
+cobro_anticipo  = ventasNuevas[M]        * (pctAnticipoNuevas / 100)
+cobro_saldo     = ventasNuevas[M-1]      * ((100 - pctAnticipoNuevas) / 100) * (1 - pctIncobrableNuevas / 100)
+
+ingresoCobrado  = cobro_rec_mes1 + cobro_rec_mes2 + cobro_anticipo + cobro_saldo
+```
+
+**Semillas para el primer mes proyectado (i=0):**
+- `ventasRecurrentes[M-1]` = ventas reales del mes anterior por `mes_economico`, todos los estados (`buildDevengadoVentasMap`)
+- `ventasRecurrentes[M-2]` = `0` — el efecto M-2 ya está capturado en el `saldoInicial` ingresado por el usuario
+- `ventasNuevas[M-1]` = `0` — no hay histórico separado de nuevas ventas
+
+**`avgRecHist`** = promedio móvil de los últimos 3 meses con datos antes del primer mes proyectado, usando `buildDevengadoVentasMap` (devengado por `mes_economico`). Se usa como placeholder cuando `ventasRecurrentesMes[i] === null`.
+
+### Función `buildDevengadoVentasMap`
+
+Agrupa `allRows` por `mes_economico`, filtrando `Cuenta_Cble === '5101-01'` **sin filtro de Estado** (incluye Emitida + Pagada + Pagada_parcial). Esto da el total devengado facturado en cada mes, base correcta para aplicar los porcentajes de cobranza.
+
+> **No confundir con Cashflow:** Cashflow agrupa por `Fecha_Pago` y solo cuenta `Pagada/Pagada_parcial` (cash efectivo). Forecast usa devengado porque los % de cobro modelan cuándo llegará ese cash.
+
+### Gastos proyectados (promedios históricos)
+
+Los gastos se calculan como promedio móvil de los últimos 3 meses con datos (`mes_economico`, solo `Estado=Pagada`):
+
+| Componente | Filtro |
+|-----------|--------|
+| Costo venta (dotación) | `computeCostoEquipo(dotacion, i)` — suma `cantidad × costoMensual` por cargo |
+| Otros gastos explotación | `Cuenta_Cble === '4101-09'` OR descripción contiene "OTROS GASTOS DE EXPLOTACION" |
+| Gastos Adm | `Tipo_Cuenta === 'Gasto_Adm'` |
+| Servicios computacionales | `Tipo_Cuenta === 'Gasto_ERP'` + delta por ventas sobre avg × `pctIncrementoSoftware` |
+| Publicidad | `Tipo_Cuenta === 'Gasto_Mkg'` |
+| Representación | `Cuenta_Cble === '4201-09'` |
+| Locomoción | `Cuenta_Cble === '4201-26'` |
+| Legales | `Cuenta_Cble === '4201-12'` |
+| Rem. Director | `Cuenta_Cble === '4401-02'` — último mes cerrado o valor por mes del panel |
+
+### Panel de control — 8 secciones
+
+| # | Sección | Contenido |
+|---|---------|-----------|
+| ① | Punto de partida | `saldoInicial` — input manual del saldo de caja actual |
+| ② | Ventas por mes | Dos inputs por mes: Recurrentes $ / Nuevas ventas $ |
+| ③ | Política de cobranza | 4 sliders: cobro rec. mes1/mes2, anticipo nuevas, incobrable nuevas |
+| ④ | Pérdida MRR | Slider `tasaPerdidaMRR` — decay sobre recurrentes proyectadas |
+| ⑤ | Dotación | 5 cargos editables con cantidad, costo/mes y cambios programados |
+| ⑥ | Remuneración Director | Input por mes (vacío = último mes real, `0` = no cobrar) |
+| ⑦ | Gastos variables | Slider `pctIncrementoSoftware` |
+| ⑧ | Alertas | `minimoAlerta` — umbral de saldo mínimo |
+
+### Regla null vs 0
+
+En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDirectorPorMes`):
+- `null` / campo vacío → usar valor por defecto (avg histórico o último real)
+- `0` explícito → mes sin ventas / sin remuneración
 
 ## Áreas incompletas
 
