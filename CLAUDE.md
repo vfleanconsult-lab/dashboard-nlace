@@ -68,9 +68,10 @@ Y los archivos de soporte del Forecast:
 ```
 src/
 ├── lib/
-│   └── forecast.ts         # Tipos, lógica de cálculo y buildForecast(). NO usa Supabase directamente — recibe allRows.
+│   └── forecast.ts              # Tipos, lógica de cálculo y buildForecast(). NO usa Supabase directamente — recibe allRows.
 └── components/
-    └── ForecastPanel.tsx   # Panel lateral (drawer) con 8 secciones de supuestos configurables
+    ├── ForecastPanel.tsx         # Panel lateral (drawer) con 8 secciones de supuestos configurables
+    └── ForecastFreezeToggle.tsx  # Toggle Congelar/Descongelar forecast — persiste en localStorage
 ```
 
 ## Fuente de datos — Supabase
@@ -286,6 +287,7 @@ const effectiveMonth = localMonth || (salesMonthsInYear.includes(NOW_MONTH)
 
 - **`forecast.ts`** — toda la lógica de cálculo. Recibe `allRows: D.Row[]` (ya cargado en memoria) y `ForecastAssumptions`. No hace queries a Supabase.
 - **`ForecastPanel.tsx`** — drawer lateral con 8 secciones de supuestos.
+- **`ForecastFreezeToggle.tsx`** — toggle de bloqueo del forecast (ver sección abajo).
 - **`Forecast.tsx`** — página: KPIs, tabla mensual, gráficos, abre el panel.
 
 ### Supuestos configurables (`ForecastAssumptions`)
@@ -366,6 +368,28 @@ Los gastos se calculan como promedio móvil de los últimos 3 meses con datos (`
 En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDirectorPorMes`):
 - `null` / campo vacío → usar valor por defecto (avg histórico o último real)
 - `0` explícito → mes sin ventas / sin remuneración
+
+### Toggle Congelar / Descongelar forecast
+
+`ForecastFreezeToggle.tsx` permite bloquear el forecast en modo solo lectura.
+
+**Comportamiento:**
+- **Activo (desbloqueado):** botón verde con `<LockOpen />` y label "Forecast Activo". Panel de Control habilitado.
+- **Congelado (bloqueado):** botón rojo con `<Lock />` y label "Forecast Congelado". Panel de Control deshabilitado (`disabled`, cursor not-allowed). Al congelar, el drawer se cierra automáticamente.
+- Cambiar en cualquier dirección requiere confirmar un modal de confirmación.
+- Bajo el botón, cuando está congelado, aparece el badge: "Congelado desde: DD/MM/YYYY HH:mm" (`font-body tabular-nums`).
+
+**Persistencia en `localStorage`:**
+
+| Clave | Valor |
+|-------|-------|
+| `forecast_frozen` | `"true"` cuando está congelado; ausente cuando activo |
+| `forecast_frozen_at` | ISO 8601 del momento en que se congeló |
+
+**Integración en `Forecast.tsx`:**
+- El estado `isFrozen` se inicializa desde `localStorage` vía la prop `onFreezeChange`.
+- Cuando `isFrozen === true`, se pasa `onChange={() => {}}` a `ForecastPanel` (no-op) para que ninguna edición tenga efecto aunque el panel se abra por alguna vía.
+- Solo los archivos `Forecast.tsx` y `ForecastFreezeToggle.tsx` participan en esta funcionalidad — no tocar `ForecastPanel.tsx` ni `forecast.ts`.
 
 ## Áreas incompletas
 
