@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Settings2, BarChart2, AlertTriangle, TrendingUp } from 'lucide-react'
 import {
   BarChart,
@@ -28,6 +28,7 @@ import SectionLabel from '../components/SectionLabel'
 import KpiCard from '../components/KpiCard'
 import ChartCard from '../components/ChartCard'
 import ForecastPanel from '../components/ForecastPanel'
+import ForecastFreezeToggle from '../components/ForecastFreezeToggle'
 
 // ─────────── Table row definitions (same structure as Cashflow) ───────────
 
@@ -89,6 +90,12 @@ export default function Forecast() {
   const [assumptions, setAssumptions] = useState<ForecastAssumptions>(DEFAULT_ASSUMPTIONS)
   const [panelOpen, setPanelOpen]     = useState(false)
   const [view, setView]               = useState<'table' | 'chart'>('table')
+  const [isFrozen, setIsFrozen]       = useState(false)
+
+  const handleFreezeChange = useCallback((frozen: boolean) => {
+    setIsFrozen(frozen)
+    if (frozen) setPanelOpen(false)
+  }, [])
 
   useEffect(() => { initialize(years) }, [years])
 
@@ -156,9 +163,16 @@ export default function Forecast() {
               Act. {loadedAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
+          <ForecastFreezeToggle onFreezeChange={handleFreezeChange} />
           <button
             onClick={() => setPanelOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-[12px] font-body font-medium bg-nl-primary text-white hover:bg-nl-primary/90 transition-colors"
+            disabled={isFrozen}
+            className={[
+              'flex items-center gap-2 px-3 py-1.5 rounded-[10px] text-[12px] font-body font-medium transition-colors',
+              isFrozen
+                ? 'bg-nl-bg text-nl-400 cursor-not-allowed'
+                : 'bg-nl-primary text-white hover:bg-nl-primary/90',
+            ].join(' ')}
           >
             <Settings2 size={14} />
             Panel de Control
@@ -446,7 +460,7 @@ export default function Forecast() {
         isOpen={panelOpen}
         onClose={() => setPanelOpen(false)}
         assumptions={assumptions}
-        onChange={setAssumptions}
+        onChange={isFrozen ? () => {} : setAssumptions}
         projectedMonths={projectedMonths}
         avgRecHist={avgRecHist}
         lastRemDirector={lastRemDirector}
