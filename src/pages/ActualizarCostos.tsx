@@ -267,10 +267,9 @@ export default function ActualizarCostos() {
       mes_economico:       r.mes_economico,
       ano_eco:             r.ano_eco,
       estado:              'Pagada',
-      proveedor:           r.proveedor,
     }
     if (r.tabla === 'costos') {
-      return { ...base, descripcion_glosa: r.glosa, id_modelo: r.id_modelo }
+      return { ...base, descripcion_glosa: r.glosa }
     }
     return base
   }
