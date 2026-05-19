@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Stack
 
-Vite 6 + React 18 + TypeScript + Tailwind CSS v4 + React Router v6 + Recharts + `@nlace/ui-kit` + Lucide React
+Vite 6 + React 18 + TypeScript + Tailwind CSS v4 + React Router v6 + Recharts + `@nlace/ui-kit` + Lucide React + `xlsx` (SheetJS)
 
 ```bash
 npm run dev      # servidor de desarrollo en localhost:5173
@@ -59,8 +59,9 @@ src/
     ├── Gastos.tsx          # Gastos operacionales — Bar + Donut + tabla
     ├── Cobranzas.tsx       # DSO — LineChart + distribución por tramo + ranking clientes
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
-    ├── Cashflow.tsx        # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
-    └── Forecast.tsx        # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
+    ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
+    ├── Forecast.tsx          # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
+    └── ActualizarCostos.tsx  # Carga de cartola bancaria → Supabase (ver sección dedicada)
 ```
 
 Y los archivos de soporte del Forecast:
@@ -117,8 +118,18 @@ fecha_vencimiento (DATE), cliente, creado_en
 ### RLS
 
 - SELECT: `anon` y `authenticated` pueden leer (lectura pública por ahora)
-- INSERT: solo `service_role` (migraciones y cargas futuras)
+- INSERT: usa `service_role` vía `VITE_SUPABASE_SERVICE_KEY` (ver sección ActualizarCostos)
 - Estructura preparada para restringir por `empresa_id` cuando haya auth
+
+### Variables de entorno
+
+| Variable | Uso |
+|----------|-----|
+| `VITE_SUPABASE_URL` | URL del proyecto Supabase (tiene fallback hardcodeado) |
+| `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura (tiene fallback hardcodeado) |
+| `VITE_SUPABASE_SERVICE_KEY` | Clave service_role legacy (JWT) para INSERTs desde ActualizarCostos |
+
+> La `VITE_SUPABASE_SERVICE_KEY` debe ser la key **legacy** en formato `eyJ...` (Settings → API → Legacy anon, service_role API keys). La nueva `sb_secret_...` está bloqueada por Supabase en contextos de browser.
 
 ### Migración de datos históricos
 
@@ -390,6 +401,65 @@ En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDire
 - El estado `isFrozen` se inicializa desde `localStorage` vía la prop `onFreezeChange`.
 - Cuando `isFrozen === true`, se pasa `onChange={() => {}}` a `ForecastPanel` (no-op) para que ninguna edición tenga efecto aunque el panel se abra por alguna vía.
 - Solo los archivos `Forecast.tsx` y `ForecastFreezeToggle.tsx` participan en esta funcionalidad — no tocar `ForecastPanel.tsx` ni `forecast.ts`.
+
+## Vista ActualizarCostos — reglas específicas
+
+`ActualizarCostos.tsx` es una página administrativa (no analítica) para cargar la cartola bancaria mensual del Banco Santander y registrar los cargos en Supabase. **No usa `useData()`, `useFilter()` ni `PageHeader`.**
+
+### Flujo
+
+1. **Upload** — drag & drop o selección de archivo `.xlsx`
+2. **Verificación de duplicados** — consulta Supabase automáticamente al parsear
+3. **Preview** — filas agrupadas por tabla destino con checkboxes
+4. **Modo prueba / producción** — prueba muestra el JSON sin ejecutar; producción hace el INSERT real
+5. **Resultado** — conteo de insertados, omitidos y errores por tabla
+
+### Lectura de la cartola
+
+- Archivo `.xlsx` del Banco Santander — usa la librería `xlsx` (SheetJS)
+- Datos desde fila 17 (índice 16): `[0]=MONTO | [1]=DESCRIPCIÓN | [3]=FECHA`
+- Solo filas donde `monto < 0` (cargos)
+- Se detiene al encontrar "resumen" en la descripción
+- **Conversión obligatoria:** `monto_bd = Math.abs(monto_cartola)` — Supabase siempre recibe positivo
+
+### Catálogos (constantes en el código)
+
+Dos catálogos hardcodeados en `ActualizarCostos.tsx`, fácilmente actualizables:
+
+**`CATALOG_SOFTWARE`** (23 proveedores) — matching por keywords en la glosa (case insensitive, `includes`)
+- Todos van a tabla `costos`, cuenta `4101-09`, clasificacion `Costo_Gto_Explot`
+
+**`CATALOG_EQUIPO`** (11 personas) — matching por `id_norm` al inicio de la glosa (`startsWith`)
+- 10 personas → tabla `costos`, cuenta `4101-01`, clasificacion `Costo_Vta`
+- Cristian Labarca → tabla `remuneraciones`, cuenta `4401-02`, `clasificacion_gasto: "Retiros"`, `tipo_cuenta: "Gasto_Retiro"`
+
+### Campos insertados por tabla
+
+**`costos`:**
+`empresa_id · cuenta_cble · descripcion_cta · clasificacion_cto · clasificacion_gasto · tipo_cuenta · monto_bruto · fecha_emision · fecha_pago · mes_economico · ano_eco · estado · descripcion_glosa`
+
+**`remuneraciones`** (sin `descripcion_glosa`):
+`empresa_id · cuenta_cble · descripcion_cta · clasificacion_cto · clasificacion_gasto · tipo_cuenta · monto_bruto · fecha_emision · fecha_pago · mes_economico · ano_eco · estado`
+
+> `mes_economico` se envía como `YYYY-MM` (sin día). `estado` siempre `"Pagada"`.
+
+### Detección de duplicados
+
+Tras parsear la cartola, consulta Supabase por el rango de fechas de la cartola y compara huellas:
+- `costos`: `fecha_pago|monto_bruto|descripcion_glosa`
+- `remuneraciones`: `fecha_pago|monto_bruto|cuenta_cble`
+
+Filas duplicadas aparecen con badge **YA EXISTE**, quedan desmarcadas por defecto y el usuario puede re-marcarlas manualmente.
+
+### Cliente Supabase para INSERTs
+
+`ActualizarCostos.tsx` crea un cliente separado `supabaseAdmin` usando `VITE_SUPABASE_SERVICE_KEY` para bypassar la RLS en escritura. Si la variable no está definida, cae en el cliente `anon` (que fallará por RLS).
+
+```typescript
+const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : supabase
+```
+
+Las lecturas de verificación de duplicados siguen usando el cliente `anon` normal.
 
 ## Áreas incompletas
 
