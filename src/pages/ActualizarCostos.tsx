@@ -483,7 +483,7 @@ export default function ActualizarCostos() {
           Actualizar Costos
         </h1>
         <p className="mt-1 text-[13px] font-body text-nl-500">
-          Importa la cartola bancaria (.xlsx Banco de Chile) y registra los cargos en Supabase.
+          Importa la cartola bancaria (.xlsx Banco Santander) y registra los cargos en Supabase.
         </p>
       </div>
 
@@ -511,7 +511,7 @@ export default function ActualizarCostos() {
               <p className={`text-[15px] font-semibold font-body transition-colors ${dragging ? 'text-nl-primary' : 'text-nl-text'}`}>
                 {dragging ? 'Suelta aquí el archivo' : 'Arrastra la cartola .xlsx'}
               </p>
-              <p className="text-[12px] text-nl-400 mt-1">Banco de Chile · datos desde fila 17</p>
+              <p className="text-[12px] text-nl-400 mt-1">Banco Santander · datos desde fila 17</p>
             </div>
             <div className="mt-2 px-4 py-2 bg-nl-primary text-white text-[12px] font-semibold rounded-input">
               Seleccionar archivo
