@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, RotateCcw, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ── CATÁLOGO SOFTWARE ─────────────────────────────────────────────────────────
@@ -79,6 +79,7 @@ type ParsedRow = {
 
 type UploadTableResult = {
   inserted: number
+  skipped: number
   errors: { glosa: string; error: string }[]
 }
 
@@ -136,10 +137,44 @@ export default function ActualizarCostos() {
   const [catRows, setCatRows] = useState<ParsedRow[]>([])
   const [uncat, setUncat] = useState<ParsedRow[]>([])
   const [selected, setSelected] = useState<Record<number, boolean>>({})
+  const [duplicateIds, setDuplicateIds] = useState<Set<string>>(new Set())
+  const [checkingDupes, setCheckingDupes] = useState(false)
   const [mode, setMode] = useState<'prueba' | 'produccion'>('prueba')
   const [jsonPreview, setJsonPreview] = useState<Record<string, object[]> | null>(null)
   const [uploadResults, setUploadResults] = useState<UploadResults | null>(null)
   const [jsonOpen, setJsonOpen] = useState(false)
+  const jsonRef = useRef<HTMLDivElement>(null)
+
+  // Scroll al JSON cuando aparece
+  useEffect(() => {
+    if (jsonPreview && jsonRef.current) {
+      jsonRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [jsonPreview])
+
+  // Verificar duplicados en Supabase después de parsear
+  useEffect(() => {
+    if (catRows.length === 0) return
+    const ids = catRows.map(r => r.id_modelo).filter(Boolean)
+    if (ids.length === 0) return
+    setCheckingDupes(true)
+    ;(async () => {
+      const existingSet = new Set<string>()
+      for (const tabla of ['costos', 'remuneraciones'] as const) {
+        const { data } = await supabase.from(tabla).select('id_modelo').in('id_modelo', ids)
+        ;(data ?? []).forEach((r: { id_modelo: string }) => existingSet.add(r.id_modelo))
+      }
+      setDuplicateIds(existingSet)
+      if (existingSet.size > 0) {
+        setSelected(prev => {
+          const n = { ...prev }
+          catRows.forEach(r => { if (existingSet.has(r.id_modelo)) n[r._idx] = false })
+          return n
+        })
+      }
+      setCheckingDupes(false)
+    })()
+  }, [catRows])
 
   const processFile = useCallback((file: File) => {
     setFileName(file.name)
@@ -254,8 +289,8 @@ export default function ActualizarCostos() {
 
     setStep('uploading')
     const results: UploadResults = {
-      costos:        { inserted: 0, errors: [] },
-      remuneraciones: { inserted: 0, errors: [] },
+      costos:        { inserted: 0, skipped: 0, errors: [] },
+      remuneraciones: { inserted: 0, skipped: 0, errors: [] },
     }
 
     for (const tabla of tables) {
@@ -263,7 +298,12 @@ export default function ActualizarCostos() {
       for (const row of rows) {
         const { error } = await supabase.from(tabla).insert(buildSupabaseRow(row))
         if (error) {
-          results[tabla].errors.push({ glosa: row.glosa, error: error.message })
+          // Duplicate key error from Supabase — count as skipped, not as error
+          if (error.code === '23505') {
+            results[tabla].skipped++
+          } else {
+            results[tabla].errors.push({ glosa: row.glosa, error: error.message })
+          }
         } else {
           results[tabla].inserted++
         }
@@ -280,6 +320,8 @@ export default function ActualizarCostos() {
     setCatRows([])
     setUncat([])
     setSelected({})
+    setDuplicateIds(new Set())
+    setCheckingDupes(false)
     setJsonPreview(null)
     setUploadResults(null)
     setJsonOpen(false)
@@ -289,6 +331,7 @@ export default function ActualizarCostos() {
   const SectionTable = ({ rows, title, color }: { rows: ParsedRow[]; title: string; color: string }) => {
     const allOn = rows.length > 0 && rows.every(r => selected[r._idx])
     const selCount = rows.filter(r => selected[r._idx]).length
+    const dupeCount = rows.filter(r => duplicateIds.has(r.id_modelo)).length
     if (rows.length === 0) return null
     return (
       <div className="mb-6">
@@ -299,6 +342,12 @@ export default function ActualizarCostos() {
           <span className="text-[10px] font-mono text-nl-400">
             {selCount}/{rows.length} seleccionados
           </span>
+          {dupeCount > 0 && (
+            <span className="flex items-center gap-1 text-[10px] font-mono text-nl-danger bg-nl-danger/8 px-2 py-0.5 rounded-pill">
+              <ShieldAlert size={10} />
+              {dupeCount} ya existen en BD
+            </span>
+          )}
         </div>
         <div className="rounded-card border border-nl-border-soft overflow-hidden">
           <table className="w-full border-collapse text-[12px]">
@@ -323,13 +372,15 @@ export default function ActualizarCostos() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {rows.map((r, i) => {
+              const isDupe = duplicateIds.has(r.id_modelo)
+              return (
                 <tr
                   key={r._idx}
                   onClick={() => toggleRow(r._idx)}
                   className={`cursor-pointer border-b border-nl-border-soft last:border-0 transition-opacity ${
                     selected[r._idx] ? 'opacity-100' : 'opacity-35'
-                  } ${i % 2 === 0 ? 'bg-nl-white' : 'bg-nl-bg/40'} hover:bg-nl-primary-10/40`}
+                  } ${isDupe ? 'bg-nl-danger/4' : i % 2 === 0 ? 'bg-nl-white' : 'bg-nl-bg/40'} hover:bg-nl-primary-10/40`}
                 >
                   <td className="px-3 py-2">
                     <div
@@ -342,7 +393,15 @@ export default function ActualizarCostos() {
                   </td>
                   <td className="px-3 py-2 font-mono text-nl-500">{r.fecha}</td>
                   <td className="px-3 py-2">
-                    <span className="font-medium text-nl-text">{r.proveedor}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-nl-text">{r.proveedor}</span>
+                      {isDupe && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-mono font-semibold text-nl-danger bg-nl-danger/10 px-1.5 py-0.5 rounded">
+                          <ShieldAlert size={9} />
+                          YA EXISTE
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <span
@@ -360,7 +419,7 @@ export default function ActualizarCostos() {
                   <td className="px-3 py-2 text-right font-mono text-nl-danger">{fmtCLP(r.monto_cartola)}</td>
                   <td className="px-3 py-2 text-right font-mono font-semibold text-nl-success-dark">{fmtCLP(r.monto_bd)}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -434,6 +493,8 @@ export default function ActualizarCostos() {
                 <p className="text-[13px] font-medium text-nl-text">{fileName}</p>
                 <p className="text-[11px] font-mono text-nl-400 mt-0.5">
                   {catRows.length} identificados · {uncat.length} sin categorizar
+                  {checkingDupes && <span className="ml-2 text-nl-primary animate-pulse">· verificando duplicados…</span>}
+                  {!checkingDupes && duplicateIds.size > 0 && <span className="ml-2 text-nl-danger">· {duplicateIds.size} ya existen en BD</span>}
                 </p>
               </div>
             </div>
@@ -509,9 +570,9 @@ export default function ActualizarCostos() {
 
             <button
               onClick={handleUpload}
-              disabled={selRows.length === 0}
+              disabled={selRows.length === 0 || checkingDupes}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-input text-[13px] font-semibold transition-all ${
-                selRows.length === 0
+                selRows.length === 0 || checkingDupes
                   ? 'bg-nl-border-ui text-nl-400 cursor-not-allowed'
                   : mode === 'produccion'
                     ? 'bg-nl-accent text-white hover:opacity-90'
@@ -525,7 +586,7 @@ export default function ActualizarCostos() {
 
           {/* JSON preview (prueba mode) */}
           {jsonPreview && (
-            <div className="rounded-card border border-nl-border-soft overflow-hidden">
+            <div ref={jsonRef} className="rounded-card border border-nl-border-soft overflow-hidden">
               <button
                 onClick={() => setJsonOpen(o => !o)}
                 className="w-full flex items-center justify-between px-4 py-3 bg-nl-bg hover:bg-nl-primary-10/30 transition-colors"
@@ -570,6 +631,9 @@ export default function ActualizarCostos() {
                   </div>
                   <p className="text-[22px] font-body font-bold tabular-nums text-nl-text">{r.inserted}</p>
                   <p className="text-[12px] text-nl-500">registros insertados</p>
+                  {r.skipped > 0 && (
+                    <p className="text-[11px] font-mono text-nl-400 mt-1">{r.skipped} omitidos (ya existían)</p>
+                  )}
                   {hasErrors && (
                     <div className="mt-3 space-y-1">
                       {r.errors.map((e, i) => (
