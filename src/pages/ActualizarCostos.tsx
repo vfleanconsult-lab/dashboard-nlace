@@ -151,6 +151,7 @@ export default function ActualizarCostos() {
   const [jsonPreview, setJsonPreview] = useState<Record<string, object[]> | null>(null)
   const [uploadResults, setUploadResults] = useState<UploadResults | null>(null)
   const [jsonOpen, setJsonOpen] = useState(false)
+  const [mesOverrides, setMesOverrides] = useState<Record<number, string>>({})
   const jsonRef = useRef<HTMLDivElement>(null)
 
   // Scroll al JSON cuando aparece
@@ -297,6 +298,8 @@ export default function ActualizarCostos() {
   const remunRows = catRows.filter(r => r.tabla === 'remuneraciones')
 
   function buildSupabaseRow(r: ParsedRow) {
+    const mes = mesOverrides[r._idx] ?? r.mes_economico
+    const ano = parseInt(mes.split('-')[0]) || r.ano_eco
     const base = {
       empresa_id:          r.empresa_id,
       cuenta_cble:         r.cuenta_cble,
@@ -307,8 +310,8 @@ export default function ActualizarCostos() {
       monto_bruto:         r.monto_bd,
       fecha_emision:       r.fecha,
       fecha_pago:          r.fecha,
-      mes_economico:       r.mes_economico,
-      ano_eco:             r.ano_eco,
+      mes_economico:       mes,
+      ano_eco:             ano,
       estado:              'Pagada',
     }
     if (r.tabla === 'costos') {
@@ -368,6 +371,7 @@ export default function ActualizarCostos() {
     setJsonPreview(null)
     setUploadResults(null)
     setJsonOpen(false)
+    setMesOverrides({})
   }
 
   // ── TABLE SECTION ──────────────────────────────────────────────────────────
@@ -409,7 +413,8 @@ export default function ActualizarCostos() {
                     {allOn && <span className="text-[8px] text-white font-bold">✓</span>}
                   </button>
                 </th>
-                <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Fecha</th>
+                <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Fecha pago</th>
+                <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Mes econ.</th>
                 <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Proveedor</th>
                 <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Glosa banco</th>
                 <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Cuenta</th>
@@ -438,6 +443,14 @@ export default function ActualizarCostos() {
                     </div>
                   </td>
                   <td className="px-3 py-2 font-mono text-nl-500">{r.fecha}</td>
+                  <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="month"
+                      value={mesOverrides[r._idx] ?? r.mes_economico}
+                      onChange={e => setMesOverrides(p => ({ ...p, [r._idx]: e.target.value }))}
+                      className={`font-mono text-[11px] border rounded px-1.5 py-0.5 w-[110px] focus:outline-none focus:ring-1 focus:ring-nl-primary transition-colors ${mesOverrides[r._idx] ? 'border-nl-primary text-nl-primary bg-nl-primary-10' : 'border-nl-border-ui text-nl-500 bg-transparent'}`}
+                    />
+                  </td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-nl-text">{r.proveedor}</span>
