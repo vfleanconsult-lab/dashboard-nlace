@@ -254,8 +254,11 @@ export function parseDateCL(str: string): Date | null {
   // DD-MM-YYYY [time]
   const dashM = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/)
   if (dashM) return new Date(+dashM[3], +dashM[2] - 1, +dashM[1])
-  // YYYY-MM-DD (ISO)
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.substring(0, 10))
+  // YYYY-MM-DD (ISO) — parse as local time, not UTC, to avoid timezone shift
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const p = s.substring(0, 10).split('-')
+    return new Date(+p[0], +p[1] - 1, +p[2])
+  }
   return null
 }
 
