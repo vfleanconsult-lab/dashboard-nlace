@@ -209,9 +209,7 @@ export default function ActualizarGastos() {
       for (const r of raw.slice(16)) {
         const row = r as unknown[]
         if (!row) continue
-        // Detener antes de "Resumen comisiones" (puede aparecer en cualquier columna)
-        const rowText = row.map(c => (typeof c === 'string' ? c : '')).join(' ').toLowerCase()
-        if (rowText.includes('resumen comisiones')) break
+        if (typeof row[0] === 'string' && row[0].toLowerCase().includes('resumen comisiones')) break
         if (typeof row[0] !== 'number') continue
         const monto = row[0] as number
         if (monto >= 0) continue
