@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as D from '../lib/data'
 import { useData } from '../lib/useData'
 import { useFilterContext } from '../lib/FilterContext'
@@ -172,6 +172,24 @@ export default function Cashflow() {
     [selectedYear],
   )
 
+  const [detailMonth, setDetailMonth] = useState<string>('')
+  const effectiveDetailMonth = detailMonth || months[2] // default Mar del año seleccionado
+
+  const ingresoRows = useMemo(() => {
+    return allRows
+      .filter(r => {
+        const ym = getFechaPagoYM(r)
+        if (ym !== effectiveDetailMonth) return false
+        const cuenta = D.getCuenta(r)
+        return cuenta === '5101-01' || cuenta === '5201-03'
+      })
+      .sort((a, b) => {
+        const fa = D.parseDateCL(D.getFechaPago(a))
+        const fb = D.parseDateCL(D.getFechaPago(b))
+        return (fa?.getTime() ?? 0) - (fb?.getTime() ?? 0)
+      })
+  }, [allRows, effectiveDetailMonth])
+
   if (loading) return <LoadingState />
   if (error)   return <ErrorState error={errorDetail} />
 
@@ -245,6 +263,88 @@ export default function Cashflow() {
                   </tr>
                 ))}
               </tbody>
+            </table>
+          </div>
+        </div>
+        {/* Detalle de transacciones de ingresos por mes */}
+        <div>
+          <div className="flex items-center gap-4 mb-3">
+            <SectionLabel className="mb-0">Detalle Ingresos · Ventas (5101-01) y Otros (5201-03)</SectionLabel>
+            <select
+              value={effectiveDetailMonth}
+              onChange={e => setDetailMonth(e.target.value)}
+              className="ml-auto text-[12px] font-mono border border-nl-border-soft rounded px-2 py-1 bg-nl-white text-nl-text"
+            >
+              {months.map(m => (
+                <option key={m} value={m}>{D.monthLabel(m)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="bg-nl-white rounded-card border border-nl-border-soft shadow-card overflow-x-auto">
+            <table className="w-full min-w-max">
+              <thead>
+                <tr className="border-b border-nl-border-soft bg-nl-bg/50">
+                  {['Cliente', 'Cuenta', 'Estado', 'Fecha Pago', 'Mes Económico', 'Monto'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[10px] font-mono text-nl-400 uppercase tracking-[0.1em]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ingresoRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-[12px] text-nl-400 font-body">
+                      Sin registros para {D.monthLabel(effectiveDetailMonth)}
+                    </td>
+                  </tr>
+                ) : (
+                  ingresoRows.map((r, i) => {
+                    const estado = D.getEstado(r)
+                    const esIngreso = estado === 'Pagada' || estado === 'Pagada_parcial'
+                    return (
+                      <tr key={i} className={['border-b border-nl-border-soft last:border-b-0', esIngreso ? '' : 'bg-amber-50'].join(' ')}>
+                        <td className="px-4 py-2 text-[12px] font-body text-nl-700">{r['Cliente'] ?? '—'}</td>
+                        <td className="px-4 py-2 text-[12px] font-mono text-nl-500">{D.getCuenta(r)}</td>
+                        <td className="px-4 py-2 text-[12px] font-mono">
+                          <span className={['px-1.5 py-0.5 rounded text-[10px]', esIngreso ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'].join(' ')}>
+                            {estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-[12px] font-mono text-nl-500">{D.getFechaPago(r) ?? '—'}</td>
+                        <td className="px-4 py-2 text-[12px] font-mono text-nl-500">{r['Mes_economico'] ?? '—'}</td>
+                        <td className={['px-4 py-2 text-[12px] font-body tabular-nums text-right', esIngreso ? 'text-nl-text font-semibold' : 'text-amber-600'].join(' ')}>
+                          {fmt(D.getMonto(r))}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+              {ingresoRows.length > 0 && (() => {
+                const totalPag = ingresoRows.filter(r => { const e = D.getEstado(r); return e === 'Pagada' || e === 'Pagada_parcial' }).reduce((s, r) => s + D.getMonto(r), 0)
+                const totalTodo = ingresoRows.reduce((s, r) => s + D.getMonto(r), 0)
+                const ventas5101 = ingresoRows.filter(r => D.getCuenta(r) === '5101-01' && (D.getEstado(r) === 'Pagada' || D.getEstado(r) === 'Pagada_parcial')).reduce((s, r) => s + D.getMonto(r), 0)
+                return (
+                  <tfoot className="border-t-2 border-nl-border-soft bg-nl-bg/60">
+                    <tr>
+                      <td colSpan={5} className="px-4 py-2.5 text-[11px] font-mono text-nl-400">
+                        {ingresoRows.length} registros · Solo Pagada/Pagada_parcial → suma en cashflow
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-[11px] font-mono text-nl-400">
+                        <span className="block text-nl-text font-semibold text-[12px]">{fmt(totalPag)}</span>
+                        <span className="text-amber-600">Total incl. Emitida: {fmt(totalTodo)}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={5} className="px-4 pb-2 text-[11px] font-mono text-nl-500">
+                        → Ventas 5101-01 (Pagada/Pagada_parcial):
+                      </td>
+                      <td className="px-4 pb-2 text-right text-[12px] font-body tabular-nums font-semibold text-nl-primary">
+                        {fmt(ventas5101)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
