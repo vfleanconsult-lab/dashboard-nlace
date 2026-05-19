@@ -203,7 +203,7 @@ export default function ActualizarCostos() {
         const d = fecha ? new Date(fecha + 'T00:00:00') : null
         const mes = d ? d.getMonth() + 1 : 0
         const ano_eco = d ? d.getFullYear() : 0
-        const mes_economico = d ? `${ano_eco}-${String(mes).padStart(2, '0')}-01` : ''
+        const mes_economico = d ? `${ano_eco}-${String(mes).padStart(2, '0')}` : ''
 
         const parsed: ParsedRow = {
           _idx: idx++,
