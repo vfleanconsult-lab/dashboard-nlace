@@ -160,6 +160,7 @@ export default function ActualizarGastos() {
   const [jsonPreview, setJsonPreview] = useState<object[] | null>(null)
   const [jsonOpen, setJsonOpen]   = useState(false)
   const [result, setResult]       = useState<TableResult | null>(null)
+  const [mesOverrides, setMesOverrides] = useState<Record<number, string>>({})
   const jsonRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -256,20 +257,24 @@ export default function ActualizarGastos() {
 
   const selRows = catRows.filter(r => selected[r._idx])
 
-  const buildRow = (r: GastosRow) => ({
-    empresa_id:          r.empresa_id,
-    cuenta_cble:         r.cuenta_cble,
-    descripcion_cta:     r.descripcion_cta,
-    clasificacion_gasto: r.clasificacion_gasto,
-    tipo_cuenta:         r.tipo_cuenta,
-    monto_bruto:         r.monto_bd,
-    fecha_emision:       r.fecha,
-    fecha_pago:          r.fecha,
-    mes_economico:       r.mes_economico,
-    ano_eco:             r.ano_eco,
-    estado:              'Pagada',
-    descripcion_glosa:   r.glosa,
-  })
+  const buildRow = (r: GastosRow) => {
+    const mes = mesOverrides[r._idx] ?? r.mes_economico
+    const ano = parseInt(mes.split('-')[0]) || r.ano_eco
+    return {
+      empresa_id:          r.empresa_id,
+      cuenta_cble:         r.cuenta_cble,
+      descripcion_cta:     r.descripcion_cta,
+      clasificacion_gasto: r.clasificacion_gasto,
+      tipo_cuenta:         r.tipo_cuenta,
+      monto_bruto:         r.monto_bd,
+      fecha_emision:       r.fecha,
+      fecha_pago:          r.fecha,
+      mes_economico:       mes,
+      ano_eco:             ano,
+      estado:              'Pagada',
+      descripcion_glosa:   r.glosa,
+    }
+  }
 
   const handleUpload = async () => {
     if (mode === 'prueba') {
@@ -293,7 +298,7 @@ export default function ActualizarGastos() {
   const reset = () => {
     setStep('upload'); setFileName(''); setCatRows([]); setUncat([])
     setSelected({}); setDuplicateIds(new Set()); setCheckingDupes(false)
-    setJsonPreview(null); setResult(null); setJsonOpen(false)
+    setJsonPreview(null); setResult(null); setJsonOpen(false); setMesOverrides({})
   }
 
   const isDupe = (r: GastosRow) => duplicateIds.has(`${r.fecha}|${r.monto_bd}|${r.glosa}`)
@@ -394,7 +399,8 @@ export default function ActualizarGastos() {
                           {allOn && <span className="text-[8px] text-white font-bold">✓</span>}
                         </button>
                       </th>
-                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Fecha</th>
+                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Fecha pago</th>
+                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Mes econ.</th>
                       <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Categoría</th>
                       <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Glosa banco</th>
                       <th className="px-3 py-2.5 text-left font-mono text-[10px] text-nl-400 uppercase tracking-[0.1em]">Cuenta</th>
@@ -414,6 +420,14 @@ export default function ActualizarGastos() {
                             </div>
                           </td>
                           <td className="px-3 py-2 font-mono text-nl-500">{r.fecha}</td>
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="month"
+                              value={mesOverrides[r._idx] ?? r.mes_economico}
+                              onChange={e => setMesOverrides(p => ({ ...p, [r._idx]: e.target.value }))}
+                              className={`font-mono text-[11px] border rounded px-1.5 py-0.5 w-[110px] focus:outline-none focus:ring-1 focus:ring-nl-accent transition-colors ${mesOverrides[r._idx] ? 'border-nl-accent text-nl-accent bg-orange-50' : 'border-nl-border-ui text-nl-500 bg-transparent'}`}
+                            />
+                          </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-nl-text">{r.clasificacion_gasto}</span>
