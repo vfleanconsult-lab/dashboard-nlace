@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: '/estado-resultado',    label: 'Estado Resultado',  Icon: BarChart2       },
   { to: '/cashflow',            label: 'Cashflow',          Icon: ArrowLeftRight  },
   { to: '/forecast',            label: 'Forecast',          Icon: TrendingUp      },
-  { to: '/actualizar-costos',   label: 'Actualizar Costos', Icon: UploadCloud     },
+  { to: '/actualizar',           label: 'Actualizar Datos',  Icon: UploadCloud     },
 ]
 
 export default function Sidebar() {
