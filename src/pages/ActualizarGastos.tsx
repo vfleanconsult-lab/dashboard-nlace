@@ -114,7 +114,14 @@ function norm(s: string): string {
   return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
+// Glosas que nunca deben registrarse en gastos (ej: amortización de crédito)
+function isExcluded(glosa: string): boolean {
+  const u = norm(glosa)
+  return u.includes('LCA') && u.includes('AMORTIZACION PERIODICA')
+}
+
 function matchGasto(glosa: string): CatalogEntry | null {
+  if (isExcluded(glosa)) return null
   const u = norm(glosa)
   for (const e of CATALOG_GASTOS) {
     for (const kw of e.keywords) {
