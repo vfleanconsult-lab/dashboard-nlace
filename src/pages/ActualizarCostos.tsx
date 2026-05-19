@@ -160,10 +160,9 @@ export default function ActualizarCostos() {
     setCheckingDupes(true)
     ;(async () => {
       const existingSet = new Set<string>()
-      for (const tabla of ['costos', 'remuneraciones'] as const) {
-        const { data } = await supabase.from(tabla).select('id_modelo').in('id_modelo', ids)
-        ;(data ?? []).forEach((r: { id_modelo: string }) => existingSet.add(r.id_modelo))
-      }
+      // Solo costos tiene id_modelo; remuneraciones no tiene ese campo
+      const { data } = await supabase.from('costos').select('id_modelo').in('id_modelo', ids)
+      ;(data ?? []).forEach((r: { id_modelo: string }) => existingSet.add(r.id_modelo))
       setDuplicateIds(existingSet)
       if (existingSet.size > 0) {
         setSelected(prev => {
@@ -255,14 +254,13 @@ export default function ActualizarCostos() {
   const remunRows = catRows.filter(r => r.tabla === 'remuneraciones')
 
   function buildSupabaseRow(r: ParsedRow) {
-    return {
+    const base = {
       empresa_id:          r.empresa_id,
       cuenta_cble:         r.cuenta_cble,
       descripcion_cta:     r.descripcion_cta,
       clasificacion_cto:   r.clasificacion_cto,
       clasificacion_gasto: r.clasificacion_gasto,
       tipo_cuenta:         r.tipo_cuenta,
-      descripcion_glosa:   r.glosa,
       monto_bruto:         r.monto_bd,
       fecha_emision:       r.fecha,
       fecha_pago:          r.fecha,
@@ -270,8 +268,11 @@ export default function ActualizarCostos() {
       ano_eco:             r.ano_eco,
       estado:              'Pagada',
       proveedor:           r.proveedor,
-      id_modelo:           r.id_modelo,
     }
+    if (r.tabla === 'costos') {
+      return { ...base, descripcion_glosa: r.glosa, id_modelo: r.id_modelo }
+    }
+    return base
   }
 
   const handleUpload = async () => {
