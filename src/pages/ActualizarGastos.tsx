@@ -208,8 +208,11 @@ export default function ActualizarGastos() {
       let idx = 0
       for (const r of raw.slice(16)) {
         const row = r as unknown[]
-        if (!row || typeof row[0] !== 'number') continue
-        if (typeof row[1] === 'string' && row[1].toLowerCase().includes('resumen')) break
+        if (!row) continue
+        // Detener antes de "Resumen comisiones" (puede aparecer en cualquier columna)
+        const rowText = row.map(c => (typeof c === 'string' ? c : '')).join(' ').toLowerCase()
+        if (rowText.includes('resumen comisiones')) break
+        if (typeof row[0] !== 'number') continue
         const monto = row[0] as number
         if (monto >= 0) continue
         const glosa = (row[1] as string) || ''
