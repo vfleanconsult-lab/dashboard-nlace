@@ -161,21 +161,56 @@ export default function ActualizarCostos() {
   }, [jsonPreview])
 
   // Verificar duplicados en Supabase después de parsear
+  // Huella única: fecha_pago|monto_bruto|descripcion_glosa (costos)
+  //               fecha_pago|monto_bruto|cuenta_cble       (remuneraciones)
   useEffect(() => {
     if (catRows.length === 0) return
-    const ids = catRows.map(r => r.id_modelo).filter(Boolean)
-    if (ids.length === 0) return
+    const fechas = catRows.map(r => r.fecha).filter(Boolean)
+    if (fechas.length === 0) return
+    const fechaMin = fechas.reduce((a, b) => a < b ? a : b)
+    const fechaMax = fechas.reduce((a, b) => a > b ? a : b)
     setCheckingDupes(true)
     ;(async () => {
-      const existingSet = new Set<string>()
-      // Solo costos tiene id_modelo; remuneraciones no tiene ese campo
-      const { data } = await supabase.from('costos').select('id_modelo').in('id_modelo', ids)
-      ;(data ?? []).forEach((r: { id_modelo: string }) => existingSet.add(r.id_modelo))
-      setDuplicateIds(existingSet)
-      if (existingSet.size > 0) {
+      const fingerprints = new Set<string>()
+
+      const { data: dc } = await supabase
+        .from('costos')
+        .select('fecha_pago, monto_bruto, descripcion_glosa')
+        .gte('fecha_pago', fechaMin)
+        .lte('fecha_pago', fechaMax)
+      ;(dc ?? []).forEach((r: { fecha_pago: string; monto_bruto: number; descripcion_glosa: string }) =>
+        fingerprints.add(`${r.fecha_pago}|${r.monto_bruto}|${r.descripcion_glosa}`)
+      )
+
+      const { data: dr } = await supabase
+        .from('remuneraciones')
+        .select('fecha_pago, monto_bruto, cuenta_cble')
+        .gte('fecha_pago', fechaMin)
+        .lte('fecha_pago', fechaMax)
+      ;(dr ?? []).forEach((r: { fecha_pago: string; monto_bruto: number; cuenta_cble: string }) =>
+        fingerprints.add(`${r.fecha_pago}|${r.monto_bruto}|${r.cuenta_cble}`)
+      )
+
+      // Construir Set de _idx duplicados usando la misma huella
+      const dupeSet = new Set<string>()
+      catRows.forEach(r => {
+        const key = r.tabla === 'costos'
+          ? `${r.fecha}|${r.monto_bd}|${r.glosa}`
+          : `${r.fecha}|${r.monto_bd}|${r.cuenta_cble}`
+        if (fingerprints.has(key)) dupeSet.add(key)
+      })
+
+      // Guardar huellas duplicadas para lookup en render
+      setDuplicateIds(dupeSet)
+      if (dupeSet.size > 0) {
         setSelected(prev => {
           const n = { ...prev }
-          catRows.forEach(r => { if (existingSet.has(r.id_modelo)) n[r._idx] = false })
+          catRows.forEach(r => {
+            const key = r.tabla === 'costos'
+              ? `${r.fecha}|${r.monto_bd}|${r.glosa}`
+              : `${r.fecha}|${r.monto_bd}|${r.cuenta_cble}`
+            if (dupeSet.has(key)) n[r._idx] = false
+          })
           return n
         })
       }
@@ -339,7 +374,10 @@ export default function ActualizarCostos() {
   const SectionTable = ({ rows, title, color }: { rows: ParsedRow[]; title: string; color: string }) => {
     const allOn = rows.length > 0 && rows.every(r => selected[r._idx])
     const selCount = rows.filter(r => selected[r._idx]).length
-    const dupeCount = rows.filter(r => duplicateIds.has(r.id_modelo)).length
+    const fingerprint = (r: ParsedRow) => r.tabla === 'costos'
+      ? `${r.fecha}|${r.monto_bd}|${r.glosa}`
+      : `${r.fecha}|${r.monto_bd}|${r.cuenta_cble}`
+    const dupeCount = rows.filter(r => duplicateIds.has(fingerprint(r))).length
     if (rows.length === 0) return null
     return (
       <div className="mb-6">
@@ -381,7 +419,7 @@ export default function ActualizarCostos() {
             </thead>
             <tbody>
               {rows.map((r, i) => {
-              const isDupe = duplicateIds.has(r.id_modelo)
+              const isDupe = duplicateIds.has(fingerprint(r))
               return (
                 <tr
                   key={r._idx}
