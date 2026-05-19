@@ -69,7 +69,7 @@ const CATALOG_GASTOS = [
       'DOMO GASTRO', 'DOMANI', 'PHILIA', 'TIP Y TAP', 'MARGO', 'RISHTEDAR', 'MARIBERICO',
       'UBER EATS', 'JUSTO', 'FUENTE SUIZA', 'LA FUENTE', 'MAMAKUNA', 'TERRITORIA', 'LE BISTROT',
       'CAFE MAGN', 'DACARROW', 'SPID MUT', 'RESTAURANT', 'CAFETERIA', 'OPERADORA GASTRONO',
-      'CAFE', 'FUDO',
+      'CAFE', 'FUDO', 'KHIPU',
     ],
   },
   {
@@ -109,11 +109,16 @@ type GastosRow = {
 type TableResult = { inserted: number; skipped: number; errors: { glosa: string; error: string }[] }
 
 // ── MATCHING ──────────────────────────────────────────────────────────────────
+// Normaliza acentos para que "LÍNEA" == "LINEA", "CRÉDITO" == "CREDITO", etc.
+function norm(s: string): string {
+  return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
+
 function matchGasto(glosa: string): CatalogEntry | null {
-  const u = glosa.toUpperCase()
+  const u = norm(glosa)
   for (const e of CATALOG_GASTOS) {
     for (const kw of e.keywords) {
-      if (u.includes(kw.toUpperCase())) return e
+      if (u.includes(norm(kw))) return e
     }
   }
   return null
