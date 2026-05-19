@@ -1,7 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, RotateCcw, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+
+// Cliente con service_role para INSERTs (bypassa RLS)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://orjufhwfepojfiqejhfc.supabase.co'
+const SERVICE_KEY  = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
+const supabaseAdmin = SERVICE_KEY
+  ? createClient(SUPABASE_URL, SERVICE_KEY)
+  : supabase
 
 // ── CATÁLOGO SOFTWARE ─────────────────────────────────────────────────────────
 const CATALOG_SOFTWARE = [
@@ -296,7 +304,7 @@ export default function ActualizarCostos() {
     for (const tabla of tables) {
       const rows = selRows.filter(r => r.tabla === tabla)
       for (const row of rows) {
-        const { error } = await supabase.from(tabla).insert(buildSupabaseRow(row))
+        const { error } = await supabaseAdmin.from(tabla).insert(buildSupabaseRow(row))
         if (error) {
           // Duplicate key error from Supabase — count as skipped, not as error
           if (error.code === '23505') {
