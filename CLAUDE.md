@@ -56,7 +56,7 @@ src/
     ├── Resumen.tsx         # Resumen Ejecutivo — KPIs + AreaBarChart comparativo
     ├── Ingresos.tsx        # Ventas y otros ingresos — BarChart mensual + ranking histórico clientes + tabla ventas del mes
     ├── Costos.tsx          # Estructura de costos — StackedBar + Donut + tabla
-    ├── Gastos.tsx          # Gastos operacionales — Bar + Donut + tabla
+    ├── Gastos.tsx          # Gastos operacionales — Bar + Donut + tabla comparativa N-2/N-1/N/YTD por clasificación
     ├── Cobranzas.tsx       # DSO — LineChart + distribución por tramo + ranking clientes
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
     ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
@@ -262,6 +262,58 @@ const effectiveMonth = localMonth || (salesMonthsInYear.includes(NOW_MONTH)
   ? NOW_MONTH
   : salesMonthsInYear[salesMonthsInYear.length - 1] ?? '')
 ```
+
+## Vista Gastos — tabla comparativa por clasificación
+
+`Gastos.tsx` tiene una tabla "Top Gastos YTD · Clasificacion_Gasto" que muestra la evolución mensual de cada categoría de gasto operacional.
+
+### Columnas
+
+| Clasificación | [N-2] | [N-1] | % Cambio | [N] | YTD |
+
+- **N** = mes activo derivado del filtro global (ver regla de derivación abajo)
+- **N-1, N-2** = meses anteriores calculados con `shiftMonth(monthN, -1/-2)`
+- **% Cambio** = variación porcentual de N-2 a N-1 (no de N-1 a N)
+  - Verde si el gasto bajó (valor negativo), rojo si subió (valor positivo)
+  - Muestra `—` cuando N-2 = 0 para evitar división por cero
+- **YTD** = acumulado de todos los meses del año de N hasta N inclusive; es la columna de ordenamiento (descendente)
+- Los headers de mes se muestran en formato `Mmm-AA` (ej. `Mar-26`, `Abr-26`)
+
+### Derivación del mes activo N
+
+```typescript
+const p = state.primary
+const monthN = p.type === 'month' ? p.month
+             : p.type === 'range' ? (p.to || months[months.length - 1] || '')
+             : (months[months.length - 1] || '') // year mode: último mes con datos
+```
+
+- Modo `year` → último mes con actividad en el año seleccionado (`months[months.length - 1]`)
+- Modo `month` → el mes específico del selector
+- Modo `range` → el extremo derecho del rango (`p.to`)
+
+### Fuente de datos
+
+La tabla opera **solo sobre `allRows` en memoria** — no hace queries a Supabase.
+Filtra `allRows.filter(D.isGasto)` y luego construye 4 subconjuntos:
+
+```typescript
+rowsN    // gastoRows donde getMonth(r) === monthN
+rowsN1   // gastoRows donde getMonth(r) === monthN1
+rowsN2   // gastoRows donde getMonth(r) === monthN2
+rowsYTD  // gastoRows donde getYear(r) === yearN && getMonth(r) <= monthN
+```
+
+Cada subconjunto se agrupa por `getClasGasto(r) || 'Sin clasificar'` con `buildClasifMap()`.
+El universo de categorías es la unión de las 4 claves para que filas con actividad en cualquier ventana aparezcan en la tabla.
+
+### Helpers locales en Gastos.tsx
+
+| Función | Descripción |
+|---------|-------------|
+| `shiftMonth(yyyyMM, delta)` | Suma `delta` meses a un string `YYYY-MM` usando `new Date(y, m-1+delta, 1)` |
+| `shortMonthLabel(yyyyMM)` | Convierte `YYYY-MM` a `Mmm-AA` usando `D.MONTH_LABELS` |
+| `buildClasifMap(rows)` | Agrupa filas por `clasificacion_gasto`, sumando `getMonto()` |
 
 ## Vista Cashflow — reglas específicas
 
