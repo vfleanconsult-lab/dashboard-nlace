@@ -10,16 +10,36 @@ import KpiCard from '../components/KpiCard'
 import SectionLabel from '../components/SectionLabel'
 import ChartCard from '../components/ChartCard'
 import DataTable from '../components/DataTable'
-import RankBadge from '../components/RankBadge'
-import ProgressBar from '../components/ProgressBar'
 import { LoadingState, ErrorState } from '../components/LoadingState'
 import BarChartV from '../components/charts/BarChartV'
 import NlacePieChart from '../components/charts/PieChart'
-import { PALETTE, COLORS } from '../components/charts/theme'
+import { COLORS } from '../components/charts/theme'
+
+type GastoRow = { clasif: string; n2: number; n1: number; pctChange: number | null; n: number; ytd: number }
+
+function shiftMonth(yyyyMM: string, delta: number): string {
+  const [y, m] = yyyyMM.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function shortMonthLabel(yyyyMM: string): string {
+  const [y, m] = yyyyMM.split('-')
+  return `${D.MONTH_LABELS[parseInt(m, 10) - 1]}-${y.substring(2)}`
+}
+
+function buildClasifMap(rows: D.Row[]): Record<string, number> {
+  const map: Record<string, number> = {}
+  rows.forEach(r => {
+    const c = D.getClasGasto(r) || 'Sin clasificar'
+    map[c] = (map[c] || 0) + D.getMonto(r)
+  })
+  return map
+}
 
 export default function Gastos() {
   const { rows: allRows, years, loading, error, errorDetail, loadedAt } = useData()
-  const { initialize } = useFilterContext()
+  const { initialize, state } = useFilterContext()
   const allMonths = getAllMonths(allRows)
   const { rows, months, label } = useFilter(allRows)
 
@@ -31,14 +51,46 @@ export default function Gastos() {
   const ventas        = D.sumMonto(rows.filter(D.isVenta))
   const gastos        = D.sumMonto(rows.filter(D.isGasto))
   const remDirectores = D.sumMonto(rows.filter(D.isRemDirectores))
-  const clasifMap     = D.groupGastosByClasif(rows)
-  const clasifEntries = Object.entries(clasifMap).sort((a, b) => b[1] - a[1])
+  const clasifEntries = Object.entries(D.groupGastosByClasif(rows)).sort((a, b) => b[1] - a[1])
   const gastosByM     = D.groupByMonth(rows, D.isGasto)
   const pctVentas     = ventas > 0 ? gastos / ventas : 0
   const pctAccent     = pctVentas < 0.3 ? 'success' : pctVentas < 0.5 ? 'amber' : 'danger'
 
-  const barData    = months.map(m => ({ label: D.monthLabel(m), gastos: gastosByM[m] ?? 0 }))
-  const pieData    = clasifEntries.slice(0, 8).map(([name, value]) => ({ name: name || 'Sin clasificar', value }))
+  const barData = months.map(m => ({ label: D.monthLabel(m), gastos: gastosByM[m] ?? 0 }))
+  const pieData = clasifEntries.slice(0, 8).map(([name, value]) => ({ name: name || 'Sin clasificar', value }))
+
+  // Determine active month N from filter state
+  const p = state.primary
+  const monthN  = p.type === 'month' ? p.month
+                : p.type === 'range' ? (p.to || months[months.length - 1] || '')
+                : (months[months.length - 1] || '')
+  const monthN1 = monthN ? shiftMonth(monthN, -1) : ''
+  const monthN2 = monthN ? shiftMonth(monthN, -2) : ''
+  const yearN   = monthN ? monthN.substring(0, 4) : ''
+
+  const gastoRows = allRows.filter(D.isGasto)
+  const rowsN   = monthN  ? gastoRows.filter(r => D.getMonth(r) === monthN)  : []
+  const rowsN1  = monthN1 ? gastoRows.filter(r => D.getMonth(r) === monthN1) : []
+  const rowsN2  = monthN2 ? gastoRows.filter(r => D.getMonth(r) === monthN2) : []
+  const rowsYTD = monthN  ? gastoRows.filter(r => { const m = D.getMonth(r); return !!m && D.getYear(r) === yearN && m <= monthN }) : []
+
+  const mapN   = buildClasifMap(rowsN)
+  const mapN1  = buildClasifMap(rowsN1)
+  const mapN2  = buildClasifMap(rowsN2)
+  const mapYTD = buildClasifMap(rowsYTD)
+
+  const allClasifs = [...new Set([...Object.keys(mapN), ...Object.keys(mapN1), ...Object.keys(mapN2), ...Object.keys(mapYTD)])]
+  const gastosTableData: GastoRow[] = allClasifs
+    .map(c => {
+      const n2 = mapN2[c] ?? 0
+      const n1 = mapN1[c] ?? 0
+      return { clasif: c, n2, n1, pctChange: n2 > 0 ? (n1 - n2) / n2 * 100 : null, n: mapN[c] ?? 0, ytd: mapYTD[c] ?? 0 }
+    })
+    .sort((a, b) => b.ytd - a.ytd)
+
+  const labelN  = monthN  ? shortMonthLabel(monthN)  : '—'
+  const labelN1 = monthN1 ? shortMonthLabel(monthN1) : '—'
+  const labelN2 = monthN2 ? shortMonthLabel(monthN2) : '—'
 
   return (
     <>
@@ -72,39 +124,50 @@ export default function Gastos() {
 
         <div>
           <SectionLabel>Ranking de gastos por categoría</SectionLabel>
-          <DataTable
-            title="Top gastos YTD · Clasificacion_Gasto"
-            badge={`${clasifEntries.length} categorías`}
+          <DataTable<GastoRow>
+            title="Top Gastos YTD · Clasificacion_Gasto"
+            badge={`${gastosTableData.length} categorías`}
             columns={[
-              { header: '#', accessor: (_, i) => <RankBadge n={i} /> },
-              { header: 'Categoría', accessor: ([clas]) => <span className="font-medium text-nl-text">{(clas as string) || 'Sin clasificar'}</span> },
-              { header: 'Monto YTD', accessor: ([, monto]) => D.formatCLP(monto as number), align: 'right' },
               {
-                header: '% del Total', align: 'right',
-                accessor: ([, monto], i) => {
-                  const pct = gastos > 0 ? (monto as number) / gastos * 100 : 0
-                  return (
-                    <div>
-                      <span className="font-mono text-[12px] text-nl-700">{pct.toFixed(1)}%</span>
-                      <ProgressBar pct={pct} color={PALETTE[i % PALETTE.length]} />
-                    </div>
-                  )
+                header: 'Clasificación',
+                accessor: row => <span className="font-medium text-nl-text">{row.clasif || 'Sin clasificar'}</span>,
+              },
+              {
+                header: labelN2,
+                align: 'right',
+                accessor: row => D.formatCLP(row.n2),
+              },
+              {
+                header: labelN1,
+                align: 'right',
+                accessor: row => D.formatCLP(row.n1),
+              },
+              {
+                header: '% Cambio',
+                align: 'right',
+                accessor: row => {
+                  if (row.pctChange === null) return <span className="font-mono text-[12px] text-nl-400">—</span>
+                  const color = row.pctChange < 0 ? 'text-green-600' : row.pctChange > 0 ? 'text-red-600' : 'text-nl-700'
+                  const sign  = row.pctChange > 0 ? '+' : ''
+                  return <span className={`font-mono text-[12px] ${color}`}>{sign}{row.pctChange.toFixed(1)}%</span>
                 },
               },
               {
-                header: '% sobre Ventas', align: 'right',
-                accessor: ([, monto]) => {
-                  const pct = ventas > 0 ? (monto as number) / ventas * 100 : 0
-                  return <span className="font-mono text-[12px] text-nl-700">{ventas > 0 ? `${pct.toFixed(1)}%` : '—'}</span>
-                },
+                header: labelN,
+                align: 'right',
+                accessor: row => D.formatCLP(row.n),
+              },
+              {
+                header: 'YTD',
+                align: 'right',
+                accessor: row => <span className="font-body tabular-nums font-semibold">{D.formatCLP(row.ytd)}</span>,
               },
             ]}
-            rows={clasifEntries as [string, number][]}
-            keyFn={([clas]) => clas || 'sin-clas'}
+            rows={gastosTableData}
+            keyFn={row => row.clasif || 'sin-clas'}
             emptyText="Sin gastos en el período"
           />
         </div>
-
 
       </div>
     </>
