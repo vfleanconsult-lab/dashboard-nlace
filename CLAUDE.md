@@ -461,6 +461,20 @@ const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : su
 
 Las lecturas de verificación de duplicados siguen usando el cliente `anon` normal.
 
+## Función `parseDateCL` — comportamiento crítico
+
+`parseDateCL` en `data.ts` soporta tres formatos de entrada:
+
+| Formato | Ejemplo | Constructor usado |
+|---------|---------|-------------------|
+| `DD/MM/YYYY` | `"31/03/2026"` | `new Date(año, mes-1, día)` — hora local |
+| `DD-MM-YYYY` | `"31-03-2026"` | `new Date(año, mes-1, día)` — hora local |
+| `YYYY-MM-DD` (ISO) | `"2026-03-31"` | `new Date(año, mes-1, día)` — hora local |
+
+**Regla invariante:** todos los branches usan `new Date(año, mes-1, día)` — **nunca** `new Date(isoString)`.
+
+> **Por qué importa:** `new Date("2026-04-01")` interpreta la fecha como UTC midnight. En Chile (UTC-3/UTC-4), eso es el 31 de Marzo a las 21:00 local, por lo que `getMonth()` devuelve Marzo en vez de Abril. Este bug causó que pagos de Abril aparecieran en Marzo en el Cashflow (PR #44, mayo 2026).
+
 ## Áreas incompletas
 
 - `Resumen.tsx` tabla Punto de Equilibrio: columnas PE/Gap/Cobertura son placeholders — requiere clasificación fijo/variable en la fuente de datos

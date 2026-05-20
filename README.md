@@ -18,6 +18,7 @@ Dashboard financiero interno para análisis de resultados de gestión.
 | Recharts | 3 |
 | `@nlace/ui-kit` | latest |
 | Lucide React | latest |
+| `xlsx` (SheetJS) | latest |
 
 ---
 
@@ -47,17 +48,19 @@ Tabla de Estado de Resultado con 7 partidas contables (Ingresos → Costos → M
 ### Cashflow
 Flujo de caja mensual agrupado por **Fecha de Pago** (no por Mes Económico). Muestra los 12 meses del año seleccionado en columnas y 16 filas de componentes (saldo inicial, ingresos, costos, gastos desglosados, remuneración director, saldo final). Solo disponible desde 2026. Saldo inicial enero 2026 = $2.109.833 fijo; los meses siguientes encadenan el saldo final del mes anterior.
 
+### Forecast
+Proyección de flujo de caja desde el mes actual hasta diciembre del año en curso. Usa datos reales como semilla y supuestos configurables por el usuario (ventas recurrentes/nuevas, política de cobranza, dotación, remuneración director, gastos variables). Panel lateral con 8 secciones de parámetros. Toggle de congelamiento que bloquea el forecast en modo solo lectura y persiste en `localStorage`.
+
+### Actualizar Costos
+Página administrativa para cargar la cartola bancaria mensual del Banco Santander (`.xlsx`) y registrar los cargos en Supabase. Detecta duplicados automáticamente. Modo prueba (preview sin INSERT) y modo producción. No usa el filtro global de período.
+
 ---
 
 ## Fuente de datos
 
-Google Sheets exportado como CSV (público):
+**Supabase** — proyecto `https://orjufhwfepojfiqejhfc.supabase.co`
 
-```
-https://docs.google.com/spreadsheets/d/1bkKIE2dD_HCBevKrunZa--mQH9rfUCZV26OKug7QJPM/export?format=csv&gid=1320604970
-```
-
-Cache busting cada 15 minutos. Para cambiar la fuente editar solo `CSV_URL` en `src/lib/data.ts`.
+Los datos se leen desde la vista `registros_contables` (UNION ALL de las tablas `ventas`, `costos`, `gastos`, `remuneraciones`), filtrada siempre por `empresa_id`.
 
 **Columnas clave:**
 - `Tipo` — `Ingreso` / `Costo` / `Gasto` / `Remun`
@@ -67,14 +70,24 @@ Cache busting cada 15 minutos. Para cambiar la fuente editar solo `CSV_URL` en `
 - `Cliente` — nombre del cliente
 - `Mes_economico` — período `YYYY-MM` (base para vistas devengado)
 - `monto_bruto` — monto de la transacción (siempre positivo)
-- `Fecha_emision` — fecha de emisión de la factura (`DD/MM/YYYY`)
-- `Fecha_Vencimiento` — fecha límite de pago (`DD/MM/YYYY`)
-- `Fecha_Pago` — fecha de pago real, vacía si impaga (`DD/MM/YYYY`) — base para Cashflow
+- `Fecha_emision` — fecha de emisión de la factura
+- `Fecha_Vencimiento` — fecha límite de pago
+- `Fecha_Pago` — fecha de pago real, vacía si impaga — base para Cashflow
 
 **Criterios de Estado por vista:**
 - **Vistas devengado** (Resumen, Ingresos, EstadoResultado): ingresos con `Estado ∈ { Emitida, Pagada, Pagada_parcial }`
 - **Cashflow**: ingresos con `Estado ∈ { Pagada, Pagada_parcial }` · egresos con `Estado = Pagada`
 - **Cobranzas (DSO)**: todas las ventas, sin filtro de estado
+
+---
+
+## Variables de entorno
+
+| Variable | Uso |
+|---|---|
+| `VITE_SUPABASE_URL` | URL del proyecto Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura |
+| `VITE_SUPABASE_SERVICE_KEY` | Clave service_role legacy para INSERTs (ActualizarCostos) |
 
 ---
 
@@ -103,5 +116,6 @@ npm run lint
 Vercel despliega automáticamente al hacer merge a `main`.
 
 Flujo de trabajo:
-1. Hacer push directo a `main` (o crear rama + PR si se prefiere revisión)
-2. Vercel detecta el push y despliega automáticamente
+1. Crear rama de trabajo
+2. Push a la rama + abrir PR
+3. Merge a `main` → Vercel despliega automáticamente
