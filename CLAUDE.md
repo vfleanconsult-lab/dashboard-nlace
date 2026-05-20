@@ -61,7 +61,9 @@ src/
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
     ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
     ├── Forecast.tsx          # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
-    └── ActualizarCostos.tsx  # Carga de cartola bancaria → Supabase (ver sección dedicada)
+    ├── ActualizarDatos.tsx   # Hub central de carga — 4 módulos: Costos, Gastos, Ingresos*, Nuevas Ventas* (*próximamente)
+    ├── ActualizarCostos.tsx  # Cartola bancaria → tablas costos + remuneraciones (ver sección dedicada)
+    └── ActualizarGastos.tsx  # Cartola bancaria → tabla gastos (ver sección dedicada)
 ```
 
 Y los archivos de soporte del Forecast:
@@ -127,7 +129,7 @@ fecha_vencimiento (DATE), cliente, creado_en
 |----------|-----|
 | `VITE_SUPABASE_URL` | URL del proyecto Supabase (tiene fallback hardcodeado) |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura (tiene fallback hardcodeado) |
-| `VITE_SUPABASE_SERVICE_KEY` | Clave service_role legacy (JWT) para INSERTs desde ActualizarCostos |
+| `VITE_SUPABASE_SERVICE_KEY` | Clave service_role legacy (JWT) para INSERTs desde ActualizarCostos y ActualizarGastos |
 
 > La `VITE_SUPABASE_SERVICE_KEY` debe ser la key **legacy** en formato `eyJ...` (Settings → API → Legacy anon, service_role API keys). La nueva `sb_secret_...` está bloqueada por Supabase en contextos de browser.
 
@@ -402,29 +404,66 @@ En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDire
 - Cuando `isFrozen === true`, se pasa `onChange={() => {}}` a `ForecastPanel` (no-op) para que ninguna edición tenga efecto aunque el panel se abra por alguna vía.
 - Solo los archivos `Forecast.tsx` y `ForecastFreezeToggle.tsx` participan en esta funcionalidad — no tocar `ForecastPanel.tsx` ni `forecast.ts`.
 
-## Vista ActualizarCostos — reglas específicas
+## Módulo de carga de cartola — reglas comunes
 
-`ActualizarCostos.tsx` es una página administrativa (no analítica) para cargar la cartola bancaria mensual del Banco Santander y registrar los cargos en Supabase. **No usa `useData()`, `useFilter()` ni `PageHeader`.**
+`ActualizarCostos.tsx` y `ActualizarGastos.tsx` comparten el mismo patrón. Ninguna usa `useData()`, `useFilter()` ni `PageHeader`.
 
-### Flujo
+### Hub de navegación
+
+`ActualizarDatos.tsx` (`/actualizar`) es la página de entrada con 4 tarjetas de módulos:
+- **Costos** (`/actualizar-costos`) — activo
+- **Gastos** (`/actualizar-gastos`) — activo
+- **Ingresos** — próximamente (disabled)
+- **Nuevas Ventas** — próximamente (disabled)
+
+El ítem del Sidebar apunta a `/actualizar` con label "Actualizar Datos".
+
+### Flujo (ambas páginas)
 
 1. **Upload** — drag & drop o selección de archivo `.xlsx`
 2. **Verificación de duplicados** — consulta Supabase automáticamente al parsear
-3. **Preview** — filas agrupadas por tabla destino con checkboxes
+3. **Preview** — tabla con checkboxes; columna **Mes Econ.** editable por fila
 4. **Modo prueba / producción** — prueba muestra el JSON sin ejecutar; producción hace el INSERT real
 5. **Resultado** — conteo de insertados, omitidos y errores por tabla
 
-### Lectura de la cartola
+### Lectura de la cartola (ambas páginas)
 
 - Archivo `.xlsx` del Banco Santander — usa la librería `xlsx` (SheetJS)
-- Datos desde fila 17 (índice 16): `[0]=MONTO | [1]=DESCRIPCIÓN | [3]=FECHA`
+- Datos desde **fila 17** (índice 16): `[0]=MONTO | [1]=DESCRIPCIÓN | [3]=FECHA`
 - Solo filas donde `monto < 0` (cargos)
-- Se detiene al encontrar "resumen" en la descripción
+- Se detiene cuando la columna A contiene `"Resumen comisiones"` (case insensitive)
 - **Conversión obligatoria:** `monto_bd = Math.abs(monto_cartola)` — Supabase siempre recibe positivo
 
-### Catálogos (constantes en el código)
+### Mes económico editable
 
-Dos catálogos hardcodeados en `ActualizarCostos.tsx`, fácilmente actualizables:
+En el preview cada fila tiene un `<input type="month">` para `mes_economico`. Por defecto usa el mes de `fecha_pago`. Si se modifica, la celda se resalta (azul en Costos, naranja en Gastos) y `buildSupabaseRow` / `buildRow` aplica el override junto con el `ano_eco` recalculado.
+
+```typescript
+const mes = mesOverrides[r._idx] ?? r.mes_economico
+const ano = parseInt(mes.split('-')[0]) || r.ano_eco
+```
+
+Esto permite que pagos realizados en un mes se contabilicen en el mes económico correcto.
+
+### Cliente Supabase para INSERTs
+
+Ambas páginas crean un cliente separado `supabaseAdmin` con `VITE_SUPABASE_SERVICE_KEY` para bypassar RLS en escritura. Si la variable no está definida, cae en el cliente `anon` (que fallará por RLS).
+
+```typescript
+const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : supabase
+```
+
+Las lecturas de verificación de duplicados usan el cliente `anon` normal.
+
+### Detección de duplicados (ambas páginas)
+
+Consulta Supabase por el rango de fechas de la cartola y compara huellas `fecha_pago|monto_bruto|descripcion_glosa`. Filas duplicadas aparecen con badge **YA EXISTE**, desmarcadas por defecto.
+
+---
+
+## Vista ActualizarCostos — reglas específicas
+
+### Catálogos
 
 **`CATALOG_SOFTWARE`** (23 proveedores) — matching por keywords en la glosa (case insensitive, `includes`)
 - Todos van a tabla `costos`, cuenta `4101-09`, clasificacion `Costo_Gto_Explot`
@@ -443,23 +482,55 @@ Dos catálogos hardcodeados en `ActualizarCostos.tsx`, fácilmente actualizables
 
 > `mes_economico` se envía como `YYYY-MM` (sin día). `estado` siempre `"Pagada"`.
 
-### Detección de duplicados
+---
 
-Tras parsear la cartola, consulta Supabase por el rango de fechas de la cartola y compara huellas:
-- `costos`: `fecha_pago|monto_bruto|descripcion_glosa`
-- `remuneraciones`: `fecha_pago|monto_bruto|cuenta_cble`
+## Vista ActualizarGastos — reglas específicas
 
-Filas duplicadas aparecen con badge **YA EXISTE**, quedan desmarcadas por defecto y el usuario puede re-marcarlas manualmente.
+### Catálogo
 
-### Cliente Supabase para INSERTs
+**`CATALOG_GASTOS`** (10 categorías) — matching por keywords en la glosa con `norm()` (normaliza acentos: `LÍNEA == LINEA`). Orden importa: categorías específicas antes que genéricas.
 
-`ActualizarCostos.tsx` crea un cliente separado `supabaseAdmin` usando `VITE_SUPABASE_SERVICE_KEY` para bypassar la RLS en escritura. Si la variable no está definida, cae en el cliente `anon` (que fallará por RLS).
+| # | Categoría | Tipo_Cuenta | Cuenta | Keywords clave |
+|---|-----------|-------------|--------|----------------|
+| 1 | Honorarios | Gasto_Adm | 4201-02 | OLGA, RAMIREZ, VICTOR FIGUEROA, RUTs |
+| 2 | ERP | Gasto_ERP | 4201-37 | TOKU, NUBOX PAY, HAULMER |
+| 3 | Marketing | Gasto_Mkg | 4301-03 | FACEBK, FACEBOOK, META |
+| 4 | Cobranza | Gasto_Cobranza | 4301-02 | NP PAYU, PAYU |
+| 5 | Abogados | Gasto_Legl | 4201-12 | RUT 76.229.620-9, FLORES ACEVEDO, NOTARIA |
+| 6 | Banco | Gasto_Adm | 4201-10 | COM.MANTENCION, LCA N°, INTERESES LINEA, SOBREGIRO |
+| 7 | Bencina | Gasto_Benc | 4201-26 | SHELL, ARAMCO, COMBUSTIBLE, BENCINA |
+| 8 | Restorant | Gasto_Rest | 4201-09 | STARBUCKS, UBER EATS, KHIPU, CAFE, RESTAURANT… |
+| 9 | Estacionamiento | Gasto_Mov | 4201-26 | SABA, PARKING, SIMPLEPARK, AKIPARK… |
+| 10 | Movilizacion | Gasto_Mov | 4201-26 | CABIFY, UBER, SMARTYCAR |
+
+> **Restorant va antes de Movilizacion** para que "UBER EATS" clasifique como restaurante y no como taxi.
+
+### Función `norm()`
 
 ```typescript
-const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : supabase
+function norm(s: string): string {
+  return s.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+}
 ```
 
-Las lecturas de verificación de duplicados siguen usando el cliente `anon` normal.
+Normaliza diacríticos antes del match. Se aplica tanto a la glosa como a cada keyword.
+
+### Exclusión: amortización de crédito
+
+```typescript
+function isExcluded(glosa: string): boolean {
+  const u = norm(glosa)
+  return u.includes('LCA') && u.includes('AMORTIZACION PERIODICA')
+}
+```
+
+Glosas con LCA + Amortización Periódica corresponden a cuotas de crédito bancario — no son gasto operacional y se excluyen antes del matching (quedan en "Sin categorizar").
+
+### Campos insertados (`gastos`)
+
+`empresa_id · cuenta_cble · descripcion_cta · clasificacion_gasto · tipo_cuenta · monto_bruto · fecha_emision · fecha_pago · mes_economico · ano_eco · estado · descripcion_glosa`
+
+> No lleva `clasificacion_cto` (es NULL para todos los gastos operacionales).
 
 ## Función `parseDateCL` — comportamiento crítico
 
