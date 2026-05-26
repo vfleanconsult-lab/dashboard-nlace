@@ -93,14 +93,20 @@ Configurada con `security_invoker = on` para que el RLS de las tablas
 subyacentes se aplique según el usuario que consulta.
 `data.ts` lee siempre desde esta vista.
 
-### Schema de columnas (todas las tablas)
+### Schema de columnas
 
+**Todas las tablas (base):**
 ```
 empresa_id, cuenta_cble, descripcion_cta, clasificacion_gasto,
 clasificacion_cto, tipo_cuenta, estado, mes_economico, ano_eco,
 monto_bruto (NUMERIC), fecha_emision (DATE), fecha_pago (DATE),
 fecha_vencimiento (DATE), cliente, creado_en
 ```
+
+**Columnas adicionales por tabla:**
+- `ventas`: `rut_cliente` (TEXT), `folio` (TEXT)
+- `costos`: `descripcion_glosa` (TEXT)
+- `gastos`: `descripcion_glosa` (TEXT)
 
 ### RLS
 
@@ -110,14 +116,14 @@ fecha_vencimiento (DATE), cliente, creado_en
 
 ### Migración de datos históricos
 
-921 filas migradas desde Google Sheet `Data_Comb` (mayo 2025):
-- ventas: 206 filas
-- costos: 306 filas
-- gastos: 373 filas
+Estado actual (mayo 2025):
+- ventas: 212 filas (con `rut_cliente` y `folio`)
+- costos: 306 filas (con `descripcion_glosa`)
+- gastos: 373 filas (con `descripcion_glosa`)
 - remuneraciones: 36 filas
 
-Script de migración: `supabase/migrate.mjs` (requiere `.env` con credenciales).
 Schema inicial: `supabase/migrations/20250505_001_schema_inicial.sql`.
+Columnas adicionales agregadas con `ALTER TABLE` tras la migración inicial.
 
 ### Mapper CSV → Row
 
