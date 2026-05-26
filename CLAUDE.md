@@ -50,8 +50,7 @@ src/
 │       ├── AreaChart.tsx     # AreaChart apilable (ingresos)
 │       ├── BarChartV.tsx     # BarChart vertical, stacked y multiColor
 │       ├── PieChart.tsx      # Donut chart con leyenda lateral
-│       ├── LineChartR.tsx    # LineChart con reference lines (DSO)
-│       └── HBarChart.tsx     # BarChart horizontal
+│       └── LineChartR.tsx    # LineChart con reference lines (DSO)
 └── pages/
     ├── Resumen.tsx         # Resumen Ejecutivo — KPIs + AreaBarChart comparativo
     ├── Ingresos.tsx        # Ventas y otros ingresos — BarChart mensual + ranking histórico clientes + tabla ventas del mes
