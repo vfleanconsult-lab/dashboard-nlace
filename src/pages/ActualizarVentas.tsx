@@ -72,6 +72,13 @@ function mapEstado(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 }
 
+// Normaliza RUT para comparación: elimina puntos, trim, uppercase
+// "76.229.620-9" == "76229620-9" == "76229620-9 "
+const normRut = (s: string) => (s ?? '').replace(/\./g, '').trim().toUpperCase()
+const normFolio = (s: string) => (s ?? '').trim()
+const fpKey = (folio: string, fecha: string, rut: string) =>
+  `${normFolio(folio)}|${fecha}|${normRut(rut)}`
+
 function shortMonthLabel(yyyyMM: string): string {
   if (!yyyyMM) return ''
   const [y, m] = yyyyMM.split('-')
@@ -155,14 +162,14 @@ export default function ActualizarVentas() {
     setJsonPreview(null)
   }, [allParsed, selectedMonth])
 
-  // Verificar duplicados en Supabase — huella: folio|fecha_emision|rut_cliente
+  // Verificar duplicados en Supabase — huella normalizada: folio|fecha_emision|rut_cliente
+  // Consulta el mes completo (no solo el rango del CSV) para no perder registros
+  // cargados con fecha diferente. Normaliza RUT para tolerar diferencias de formato.
   useEffect(() => {
     if (mainRows.length === 0) return
-    const fechas = mainRows.map(r => r.fecha_emision).filter(Boolean)
-    if (!fechas.length) return
-    const fechaMin = fechas.reduce((a, b) => a < b ? a : b)
-    const fechaMax = fechas.reduce((a, b) => a > b ? a : b)
     setCheckingDupes(true)
+    const fechaMin = `${selectedMonth}-01`
+    const fechaMax = `${selectedMonth}-31`
     ;(async () => {
       const { data } = await supabase
         .from('ventas')
@@ -171,7 +178,7 @@ export default function ActualizarVentas() {
         .lte('fecha_emision', fechaMax)
       const fp = new Set<string>(
         (data ?? []).map((r: { folio: string; fecha_emision: string; rut_cliente: string }) =>
-          `${r.folio}|${r.fecha_emision}|${r.rut_cliente}`
+          fpKey(r.folio, r.fecha_emision, r.rut_cliente)
         )
       )
       setDupeKeys(fp)
@@ -179,14 +186,14 @@ export default function ActualizarVentas() {
         setSelected(prev => {
           const n = { ...prev }
           mainRows.forEach(r => {
-            if (fp.has(`${r.folio}|${r.fecha_emision}|${r.rut_cliente}`)) n[r._idx] = false
+            if (fp.has(fpKey(r.folio, r.fecha_emision, r.rut_cliente))) n[r._idx] = false
           })
           return n
         })
       }
       setCheckingDupes(false)
     })()
-  }, [mainRows])
+  }, [mainRows, selectedMonth])
 
   const processFile = useCallback((file: File) => {
     setFileName(file.name)
@@ -278,7 +285,7 @@ export default function ActualizarVentas() {
   }
 
   const selRows   = mainRows.filter(r => selected[r._idx])
-  const isDupe    = (r: VentaRow) => dupeKeys.has(`${r.folio}|${r.fecha_emision}|${r.rut_cliente}`)
+  const isDupe    = (r: VentaRow) => dupeKeys.has(fpKey(r.folio, r.fecha_emision, r.rut_cliente))
   const dupeCount = mainRows.filter(isDupe).length
   const allOn     = mainRows.length > 0 && mainRows.every(r => selected[r._idx])
   const ncAntCount = mainRows.filter(r => r.isNcAnterior).length
