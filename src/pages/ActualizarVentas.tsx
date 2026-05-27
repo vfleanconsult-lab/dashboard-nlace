@@ -133,14 +133,21 @@ export default function ActualizarVentas() {
     const facList = filtered.filter(r => r.tipo_doc !== 'N/C-EL')
 
     for (const nc of ncList) {
-      const match = facList.find(f =>
+      // Todas las FAC con mismo cliente y monto (puede haber varias si una fue anulada y reemitida)
+      const candidates = facList.filter(f =>
         !autoExcludeSet.has(f._idx) &&
         f.cliente === nc.cliente &&
         Math.round(Math.abs(f.monto_bruto)) === Math.round(Math.abs(nc.monto_bruto))
       )
-      if (match) {
+      if (candidates.length > 0) {
+        // La N/C cancela la FAC de MENOR folio (la original anulada).
+        // La FAC de mayor folio es la de reemplazo y debe quedar para cargar.
+        const parseF = (s: string) => parseInt(s.replace(/\D/g, ''), 10) || 0
+        const cancelled = candidates.reduce((min, f) =>
+          parseF(f.folio) < parseF(min.folio) ? f : min
+        )
         autoExcludeSet.add(nc._idx)
-        autoExcludeSet.add(match._idx)
+        autoExcludeSet.add(cancelled._idx)
       } else {
         nc.isNcAnterior = true
       }
