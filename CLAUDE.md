@@ -60,9 +60,10 @@ src/
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
     ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
     ├── Forecast.tsx          # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
-    ├── ActualizarDatos.tsx   # Hub central de carga — 4 módulos: Costos, Gastos, Ingresos*, Nuevas Ventas* (*próximamente)
+    ├── ActualizarDatos.tsx   # Hub central de carga — 4 módulos: Costos, Gastos, Ingresos, Nuevas Ventas* (*próximamente)
     ├── ActualizarCostos.tsx  # Cartola bancaria → tablas costos + remuneraciones (ver sección dedicada)
-    └── ActualizarGastos.tsx  # Cartola bancaria → tabla gastos (ver sección dedicada)
+    ├── ActualizarGastos.tsx  # Cartola bancaria → tabla gastos (ver sección dedicada)
+    └── ActualizarVentas.tsx  # Reporte Nubox CSV → tabla ventas (ver sección dedicada)
 ```
 
 Y los archivos de soporte del Forecast:
@@ -470,8 +471,10 @@ En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDire
 `ActualizarDatos.tsx` (`/actualizar`) es la página de entrada con 4 tarjetas de módulos:
 - **Costos** (`/actualizar-costos`) — activo
 - **Gastos** (`/actualizar-gastos`) — activo
-- **Ingresos** — próximamente (disabled)
+- **Ingresos** (`/actualizar-ventas`) — activo (color `nl-success`, verde)
 - **Nuevas Ventas** — próximamente (disabled)
+
+Al añadir un nuevo módulo activo, agregar su color en los mapas `colorMap` e `iconColorMap` de `ActualizarDatos.tsx` y extender los condicionales de label y chevron.
 
 El ítem del Sidebar apunta a `/actualizar` con label "Actualizar Datos".
 
@@ -588,6 +591,93 @@ Glosas con LCA + Amortización Periódica corresponden a cuotas de crédito banc
 `empresa_id · cuenta_cble · descripcion_cta · clasificacion_gasto · tipo_cuenta · monto_bruto · fecha_emision · fecha_pago · mes_economico · ano_eco · estado · descripcion_glosa`
 
 > No lleva `clasificacion_cto` (es NULL para todos los gastos operacionales).
+
+---
+
+## Vista ActualizarVentas — reglas específicas
+
+Ruta: `/actualizar-ventas`. Importa el reporte de documentos tributarios exportado desde Nubox (`.csv` con separador `;`) y carga las facturas del mes seleccionado a la tabla `ventas` de Supabase.
+
+### Diferencias clave vs ActualizarCostos / ActualizarGastos
+
+| Aspecto | Costos / Gastos | Ventas |
+|---------|----------------|--------|
+| Formato archivo | `.xlsx` Banco Santander | `.csv` Nubox (separador `;`) |
+| Encoding | ArrayBuffer → UTF-8 | ArrayBuffer → UTF-8, fallback ISO-8859-1 |
+| Catálogo de matching | Sí (CATALOG_SOFTWARE, CATALOG_EQUIPO, CATALOG_GASTOS) | No — todos los registros son ventas |
+| Filtro por mes | No (se muestran todos) | Sí — solo el mes seleccionado (default: mes actual) |
+| Mes económico editable por fila | Sí | No (calculado desde `fecha_emision`) |
+| Tabla Supabase destino | `costos` + `remuneraciones` / `gastos` | `ventas` |
+| Color temático | azul / naranja | verde (`nl-success-dark`) |
+
+### Parseo del CSV
+
+- Primera fila: encabezados. Detección dinámica de columnas por nombre (case-insensitive, normaliza espacios).
+- Columnas esperadas: `Fecha`, `Folio`, `Rut Cliente`, `Cliente`, `Monto total`, `Estado`, `Fecha vencimiento`, `Documento`
+- `Documento` no se guarda en Supabase — solo se usa internamente para clasificar el tipo de documento.
+- Fechas en formato `DD/MM/YYYY` → se convierten a `YYYY-MM-DD`.
+- Montos en formato chileno `"1.234.567"` o `"1.234.567,00"` → se normalizan eliminando puntos y convirtiendo coma a punto.
+- `monto_bruto` siempre positivo (`Math.abs`).
+
+### Mapeo de estado
+
+| CSV Nubox | Supabase |
+|-----------|----------|
+| `Emitido` | `Emitida` |
+| `Pagado` | `Pagada` |
+| `Pagado Parcial` | `Pagada_parcial` |
+| `Anulado` | `Anulada` |
+
+### Flujo de estado
+
+```
+allParsed (todos los registros del CSV, sin filtro)
+    ↓ useEffect [allParsed, selectedMonth]
+mainRows + excRows (filtrados por mes + lógica N/C)
+    ↓ useEffect [mainRows, selectedMonth]
+dupeKeys (fingerprints ya existentes en Supabase)
+```
+
+Al cambiar `selectedMonth`, se resetean `selected`, `dupeKeys` y `checkingDupes`.
+
+### Selector de mes
+
+- Por defecto: mes actual (`NOW_MONTH = YYYY-MM` calculado al montar).
+- Si el CSV no tiene registros del mes actual, selecciona automáticamente el mes más reciente disponible.
+- El `<select>` muestra los meses disponibles en el CSV en orden descendente, con etiqueta `Mmm-AA`.
+- Al cambiar el mes se re-aplica la lógica N/C y se re-consultan duplicados.
+
+### Lógica de notas de crédito (N/C-EL)
+
+Se aplica sobre los registros ya filtrados por `selectedMonth`:
+
+1. **Candidatas**: todas las FAC (`tipo_doc !== 'N/C-EL'`) con el mismo `cliente` y `monto_bruto` (redondeado) que la N/C.
+2. **Emparejamiento**: la N/C se empareja con la FAC de **menor folio** entre las candidatas — esa es la factura original anulada. La de mayor folio es el reemplazo válido.
+3. **Auto-excluidos**: el par N/C + FAC anulada se marca `isAutoExcluded = true` y aparece en la sección "Excluidas automáticamente" (sin checkbox, solo informacional).
+4. **N/C sin par**: si no hay FAC coincidente en el mismo mes → `isNcAnterior = true`. Aparece en la tabla principal con badge **"factura mes anterior"**, seleccionada por defecto (el usuario decide).
+
+**Ejemplo:**
+```
+FAC-EL 35  → excluida (par de N/C-32, folio más bajo)
+N/C-EL 32  → excluida (cancela FAC-35)
+FAC-EL 36  → ✓ disponible para cargar (reemplazo, folio más alto)
+```
+
+### Detección de duplicados en Supabase
+
+- Huella: `folio|fecha_emision|rut_cliente` (todos normalizados).
+- **Normalización de RUT**: `normRut(s)` elimina puntos — `"76.229.620-9"` == `"76229620-9"`. Necesario porque Nubox exporta con puntos pero algunos registros históricos se cargaron sin ellos.
+- **Rango de consulta**: mes completo `YYYY-MM-01` → `YYYY-MM-31` (no solo el rango de fechas del CSV), para capturar registros aunque su `fecha_emision` difiera ligeramente.
+- Duplicados aparecen con badge **YA EXISTE**, desmarcados por defecto.
+
+### Campos insertados (`ventas`)
+
+`empresa_id · cuenta_cble · descripcion_cta · folio · rut_cliente · cliente · monto_bruto · fecha_emision · fecha_vencimiento · estado · mes_economico · ano_eco`
+
+Valores fijos: `cuenta_cble = '5101-01'`, `descripcion_cta = 'VENTAS'`, `empresa_id = '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a'`.
+`fecha_vencimiento` se envía como `null` si está vacía. No se incluyen `fecha_pago`, `clasificacion_gasto`, `clasificacion_cto`, `tipo_cuenta` (quedan NULL).
+
+---
 
 ## Función `parseDateCL` — comportamiento crítico
 
