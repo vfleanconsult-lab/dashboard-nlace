@@ -11,6 +11,7 @@ import Cashflow from './pages/Cashflow'
 import Forecast from './pages/Forecast'
 import ActualizarCostos from './pages/ActualizarCostos'
 import ActualizarGastos from './pages/ActualizarGastos'
+import ActualizarVentas from './pages/ActualizarVentas'
 import ActualizarDatos from './pages/ActualizarDatos'
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="actualizar" element={<ActualizarDatos />} />
           <Route path="actualizar-costos" element={<ActualizarCostos />} />
           <Route path="actualizar-gastos" element={<ActualizarGastos />} />
+          <Route path="actualizar-ventas" element={<ActualizarVentas />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

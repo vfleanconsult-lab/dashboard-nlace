@@ -19,12 +19,12 @@ const MODULES = [
     active: true,
   },
   {
-    to: null,
+    to: '/actualizar-ventas',
     label: 'Ingresos',
-    description: 'Próximamente: carga de facturas de ingresos',
+    description: 'Reporte Nubox (.csv) → tabla ventas',
     Icon: TrendingUp,
-    color: 'nl-400',
-    active: false,
+    color: 'nl-success',
+    active: true,
   },
   {
     to: null,
@@ -53,11 +53,13 @@ export default function ActualizarDatos() {
           const colorMap: Record<string, string> = {
             'nl-primary': 'bg-nl-primary-10 text-nl-primary border-nl-primary/20 hover:border-nl-primary/50 hover:bg-nl-primary-10',
             'nl-accent': 'bg-orange-50 text-nl-accent border-orange-200 hover:border-nl-accent/50 hover:bg-orange-50',
+            'nl-success': 'bg-green-50 text-nl-success-dark border-green-200 hover:border-green-400/50 hover:bg-green-50',
             'nl-400': 'bg-nl-bg text-nl-400 border-nl-border-soft',
           }
           const iconColorMap: Record<string, string> = {
             'nl-primary': 'text-nl-primary',
             'nl-accent': 'text-nl-accent',
+            'nl-success': 'text-nl-success-dark',
             'nl-400': 'text-nl-400',
           }
           const cardClass = [
@@ -87,14 +89,14 @@ export default function ActualizarDatos() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className={`font-display font-semibold text-base ${active ? (color === 'nl-primary' ? 'text-nl-primary' : 'text-nl-accent') : 'text-nl-400'}`}>
+                  <p className={`font-display font-semibold text-base ${active ? (color === 'nl-primary' ? 'text-nl-primary' : color === 'nl-success' ? 'text-nl-success-dark' : 'text-nl-accent') : 'text-nl-400'}`}>
                     {label}
                   </p>
                   <p className="mt-1 text-[12px] font-body text-nl-500 leading-snug">{description}</p>
                 </div>
 
                 {active && (
-                  <ChevronRight size={18} strokeWidth={1.75} className={`shrink-0 mt-0.5 ${color === 'nl-primary' ? 'text-nl-primary' : 'text-nl-accent'}`} />
+                  <ChevronRight size={18} strokeWidth={1.75} className={`shrink-0 mt-0.5 ${color === 'nl-primary' ? 'text-nl-primary' : color === 'nl-success' ? 'text-nl-success-dark' : 'text-nl-accent'}`} />
                 )}
               </div>
             </div>
