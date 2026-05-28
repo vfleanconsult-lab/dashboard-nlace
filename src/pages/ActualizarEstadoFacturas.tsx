@@ -50,7 +50,7 @@ type MatchDoble  = { kind: 'doble';  abono1: AbonoBanco; abono2: AbonoBanco; fac
 type MatchParcial= { kind: 'parcial'; abono: AbonoBanco; factura: FacturaEmitida; remainder: number; _sel: boolean }
 type Match = MatchSimple | MatchDoble | MatchParcial
 
-type AlertItem = { abono: AbonoBanco; motivo: string }
+type AlertItem = { abono: AbonoBanco; motivo: string; kind: 'ya_existe' | 'warning' }
 
 type ApplyResult = { updated: number; inserted: number; errors: string[] }
 
@@ -164,11 +164,14 @@ function parseCartola(fileName: string, raw: unknown[][]): AbonoBanco[] {
   return abonos
 }
 
+type FacturaPagada = { rutNorm: string; monto_bruto: number; fecha_pago: string | null }
+
 // ── MATCHING ─────────────────────────────────────────────────────────────────
 function runMatching(
   abonos: AbonoBanco[],
   facturas: FacturaEmitida[],
-  aliases: AliasEntry[]
+  aliases: AliasEntry[],
+  facturasPagadas: FacturaPagada[]
 ): { matches: Match[]; alerts: AlertItem[] } {
   const matches: Match[] = []
   const alerts: AlertItem[] = []
@@ -192,7 +195,7 @@ function runMatching(
     if (usedAbo.has(abono._idx)) continue
     const ruts = resolveRuts(abono)
     if (ruts.length === 0) {
-      alerts.push({ abono, motivo: 'No se identificó RUT del pagador en la descripción' })
+      alerts.push({ abono, kind: 'warning', motivo: 'No se identificó RUT del pagador en la descripción' })
       usedAbo.add(abono._idx)
       continue
     }
@@ -203,6 +206,21 @@ function runMatching(
     if (candidates.length >= 1) {
       matches.push({ kind: 'simple', abono, factura: candidates[0], _sel: true })
       usedFac.add(candidates[0].id)
+      usedAbo.add(abono._idx)
+      continue
+    }
+    // Phase 1b: si no hay Emitida con ese monto, verificar si ya fue pagada
+    const pagadaMatch = facturasPagadas.find(p =>
+      ruts.includes(p.rutNorm) && Math.round(p.monto_bruto) === Math.round(abono.monto)
+    )
+    if (pagadaMatch) {
+      alerts.push({
+        abono,
+        kind: 'ya_existe',
+        motivo: pagadaMatch.fecha_pago
+          ? `Factura ya registrada como Pagada (fecha_pago: ${pagadaMatch.fecha_pago})`
+          : 'Factura ya registrada como Pagada',
+      })
       usedAbo.add(abono._idx)
     }
   }
@@ -245,7 +263,7 @@ function runMatching(
     const ruts = resolveRuts(abono)
     if (ruts.length === 0) {
       if (!alerts.some(a => a.abono._idx === abono._idx))
-        alerts.push({ abono, motivo: 'Sin coincidencia — RUT no identificado' })
+        alerts.push({ abono, kind: 'warning', motivo: 'Sin coincidencia — RUT no identificado' })
       usedAbo.add(abono._idx)
       continue
     }
@@ -257,10 +275,10 @@ function runMatching(
       usedFac.add(partials[0].id)
       usedAbo.add(abono._idx)
     } else if (partials.length > 1) {
-      alerts.push({ abono, motivo: `Pago parcial ambiguo: ${partials.length} facturas posibles para mismo RUT` })
+      alerts.push({ abono, kind: 'warning', motivo: `Pago parcial ambiguo: ${partials.length} facturas posibles para mismo RUT` })
       usedAbo.add(abono._idx)
     } else {
-      alerts.push({ abono, motivo: `Sin coincidencia exacta (${fmtCLP(abono.monto)})` })
+      alerts.push({ abono, kind: 'warning', motivo: `Sin coincidencia exacta (${fmtCLP(abono.monto)})` })
       usedAbo.add(abono._idx)
     }
   }
@@ -326,20 +344,33 @@ export default function ActualizarEstadoFacturas() {
         descripcion_cta: (r.descripcion_cta as string) ?? 'VENTAS',
       }))
 
+      // Fetch Pagada/Pagada_parcial para detectar "YA EXISTE"
+      const { data: pagadasData } = await supabase
+        .from('ventas')
+        .select('rut_cliente, monto_bruto, fecha_pago')
+        .eq('empresa_id', EMPRESA_ID)
+        .in('estado', ['Pagada', 'Pagada_parcial'])
+
+      const facturasPagadas: FacturaPagada[] = (pagadasData ?? []).map((r: Record<string, unknown>) => ({
+        rutNorm: normRut((r.rut_cliente as string) ?? ''),
+        monto_bruto: Number(r.monto_bruto),
+        fecha_pago: (r.fecha_pago as string) ?? null,
+      }))
+
       // Fetch alias catalog (may not exist)
       let aliases: AliasEntry[] = []
       try {
         const { data: aliasData } = await supabase
           .from('Catalogo_Clientes')
-          .select('rut, cliente, descripcion_movimiento')
+          .select('*')
         aliases = (aliasData ?? []).map((a: Record<string, unknown>) => ({
           rut: (a.rut as string) ?? '',
           cliente: (a.cliente as string) ?? '',
-          desc_mov: ((a.descripcion_movimiento ?? a.descripcion ?? a.desc_movimiento) as string) ?? '',
-        }))
+          desc_mov: ((a.descripcion_movimiento ?? a['DESCRIPCION/MOVIMIENTO'] ?? a.descripcion ?? a.desc_movimiento) as string) ?? '',
+        })).filter(a => a.rut && a.desc_mov)
       } catch { /* table may not exist yet */ }
 
-      const { matches: m, alerts: al } = runMatching(abonos, facturas, aliases)
+      const { matches: m, alerts: al } = runMatching(abonos, facturas, aliases, facturasPagadas)
       setMatches(m)
       setAlerts(al)
       setStep('preview')
@@ -503,9 +534,12 @@ export default function ActualizarEstadoFacturas() {
               <div>
                 <p className="text-[13px] font-medium text-nl-text">{fileName}</p>
                 <p className="text-[11px] font-mono text-nl-400 mt-0.5">
-                  {matches.length} coincidencias encontradas
-                  {alerts.length > 0 && (
-                    <span className="ml-2 text-amber-600">· {alerts.length} sin coincidencia</span>
+                  {matches.length} coincidencias
+                  {alerts.filter(a => a.kind === 'ya_existe').length > 0 && (
+                    <span className="ml-2 text-emerald-600">· {alerts.filter(a => a.kind === 'ya_existe').length} ya procesadas</span>
+                  )}
+                  {alerts.filter(a => a.kind === 'warning').length > 0 && (
+                    <span className="ml-2 text-amber-600">· {alerts.filter(a => a.kind === 'warning').length} sin coincidencia</span>
                   )}
                 </p>
               </div>
@@ -654,14 +688,53 @@ export default function ActualizarEstadoFacturas() {
             </div>
           )}
 
-          {/* Alerts */}
-          {alerts.length > 0 && (
+          {/* Already processed alerts */}
+          {alerts.filter(a => a.kind === 'ya_existe').length > 0 && (
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-emerald-600">
+                  Ya procesadas
+                </span>
+                <span className="text-[10px] font-mono text-nl-400">{alerts.filter(a => a.kind === 'ya_existe').length} abonos</span>
+              </div>
+              <div className="rounded-card border border-emerald-200 overflow-hidden">
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr className="bg-emerald-50 border-b border-emerald-200">
+                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-emerald-700 uppercase tracking-[0.1em]">Fecha</th>
+                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-emerald-700 uppercase tracking-[0.1em]">Descripción</th>
+                      <th className="px-3 py-2.5 text-right font-mono text-[10px] text-emerald-700 uppercase tracking-[0.1em]">Monto</th>
+                      <th className="px-3 py-2.5 text-left font-mono text-[10px] text-emerald-700 uppercase tracking-[0.1em]">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alerts.filter(a => a.kind === 'ya_existe').map((al, i) => (
+                      <tr key={i} className={`border-b border-emerald-100 last:border-0 ${i % 2 === 0 ? 'bg-nl-white' : 'bg-emerald-50/40'}`}>
+                        <td className="px-3 py-2 font-mono text-nl-500">{al.abono.fecha}</td>
+                        <td className="px-3 py-2 text-nl-500 max-w-[240px] truncate" title={al.abono.descripcion}>{al.abono.descripcion}</td>
+                        <td className="px-3 py-2 text-right font-mono text-nl-text">{fmtCLP(al.abono.monto)}</td>
+                        <td className="px-3 py-2">
+                          <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-semibold">
+                            <CheckCircle size={11} />YA EXISTE
+                          </span>
+                          <span className="text-[10px] text-nl-400">{al.motivo}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Warning alerts — no match found */}
+          {alerts.filter(a => a.kind === 'warning').length > 0 && (
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-[10px] font-mono uppercase tracking-[0.12em] text-amber-600">
                   Sin coincidencia — revisión manual
                 </span>
-                <span className="text-[10px] font-mono text-nl-400">{alerts.length} abonos</span>
+                <span className="text-[10px] font-mono text-nl-400">{alerts.filter(a => a.kind === 'warning').length} abonos</span>
               </div>
               <div className="rounded-card border border-amber-200 overflow-hidden">
                 <table className="w-full border-collapse text-[12px]">
@@ -674,7 +747,7 @@ export default function ActualizarEstadoFacturas() {
                     </tr>
                   </thead>
                   <tbody>
-                    {alerts.map((al, i) => (
+                    {alerts.filter(a => a.kind === 'warning').map((al, i) => (
                       <tr key={i} className={`border-b border-amber-100 last:border-0 ${i % 2 === 0 ? 'bg-nl-white' : 'bg-amber-50/40'}`}>
                         <td className="px-3 py-2 font-mono text-nl-500">{al.abono.fecha}</td>
                         <td className="px-3 py-2 text-nl-500 max-w-[240px] truncate" title={al.abono.descripcion}>{al.abono.descripcion}</td>
