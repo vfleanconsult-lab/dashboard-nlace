@@ -89,13 +89,6 @@ function parseXlsxDate(v: unknown): string {
   return ''
 }
 
-function shortMonthLabel(yyyyMM: string): string {
-  if (!yyyyMM) return ''
-  const [y, m] = yyyyMM.split('-')
-  const names = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  return `${names[parseInt(m)-1] ?? m}-${y.slice(2)}`
-}
-
 const fmtCLP = (n: number) =>
   new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
