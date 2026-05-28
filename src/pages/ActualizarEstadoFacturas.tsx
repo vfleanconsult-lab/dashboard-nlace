@@ -45,6 +45,13 @@ type AliasEntry = {
   desc_mov: string
 }
 
+// Aliases hardcodeados — fuente de verdad garantizada independiente de Supabase
+const ALIAS_CATALOG: AliasEntry[] = [
+  { rut: '76581730-7', cliente: 'NOISE SPA',        desc_mov: '0765817307 PAGO PROVEEDOR PODCAST' },
+  { rut: '76477884-7', cliente: 'AGROINTEGRAL SPA', desc_mov: '0765500818 Transf. Chipax SpA' },
+  { rut: '76389181-K', cliente: 'VENTA DE INSUMOS AGRICOLAS MATHIAS QUIROZ AHUMADA E.I.R.L.', desc_mov: '0765500818 Transf. Chipax SpA' },
+]
+
 type MatchSimple = { kind: 'simple'; abono: AbonoBanco; factura: FacturaEmitida; _sel: boolean }
 type MatchDoble  = { kind: 'doble';  abono1: AbonoBanco; abono2: AbonoBanco; factura: FacturaEmitida; _sel: boolean }
 type MatchParcial= { kind: 'parcial'; abono: AbonoBanco; factura: FacturaEmitida; remainder: number; _sel: boolean }
@@ -357,17 +364,20 @@ export default function ActualizarEstadoFacturas() {
         fecha_pago: (r.fecha_pago as string) ?? null,
       }))
 
-      // Fetch alias catalog (may not exist)
-      let aliases: AliasEntry[] = []
+      // Fetch alias catalog from Supabase and merge with hardcoded entries
+      let aliases: AliasEntry[] = [...ALIAS_CATALOG]
       try {
         const { data: aliasData } = await supabase
           .from('Catalogo_Clientes')
           .select('*')
-        aliases = (aliasData ?? []).map((a: Record<string, unknown>) => ({
+        const dbAliases = (aliasData ?? []).map((a: Record<string, unknown>) => ({
           rut: ((a['RUT'] ?? a.rut) as string) ?? '',
           cliente: (a.cliente as string) ?? '',
-          desc_mov: ((a.descripcion_movimiento ?? a['DESCRIPCIÓN/MOVIMIENTO'] ?? a['DESCRIPCION/MOVIMIENTO'] ?? a.descripcion ?? a.desc_movimiento) as string) ?? '',
-        })).filter(a => a.rut && a.desc_mov)
+          desc_mov: ((a.descripcion_movimiento ?? a['DESCRIPCIÓN/MOVIMIENTO'] ?? a['DESCRIPCION/MOVIMIENTO'] ?? a.descripcion ?? a.desc_movimiento) as string ?? '').trim(),
+        })).filter((a: AliasEntry) => a.rut && a.desc_mov)
+        // Add DB entries not already in hardcoded list
+        const existing = new Set(aliases.map(a => `${a.rut}|${a.desc_mov.toUpperCase()}`))
+        aliases = [...aliases, ...dbAliases.filter((a: AliasEntry) => !existing.has(`${a.rut}|${a.desc_mov.toUpperCase()}`))]
       } catch { /* table may not exist yet */ }
 
       const { matches: m, alerts: al } = runMatching(abonos, facturas, aliases, facturasPagadas)
