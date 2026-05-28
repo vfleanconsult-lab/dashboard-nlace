@@ -364,9 +364,9 @@ export default function ActualizarEstadoFacturas() {
           .from('Catalogo_Clientes')
           .select('*')
         aliases = (aliasData ?? []).map((a: Record<string, unknown>) => ({
-          rut: (a.rut as string) ?? '',
+          rut: ((a['RUT'] ?? a.rut) as string) ?? '',
           cliente: (a.cliente as string) ?? '',
-          desc_mov: ((a.descripcion_movimiento ?? a['DESCRIPCION/MOVIMIENTO'] ?? a.descripcion ?? a.desc_movimiento) as string) ?? '',
+          desc_mov: ((a.descripcion_movimiento ?? a['DESCRIPCIÓN/MOVIMIENTO'] ?? a['DESCRIPCION/MOVIMIENTO'] ?? a.descripcion ?? a.desc_movimiento) as string) ?? '',
         })).filter(a => a.rut && a.desc_mov)
       } catch { /* table may not exist yet */ }
 
