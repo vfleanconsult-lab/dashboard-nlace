@@ -60,10 +60,11 @@ src/
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
     ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
     ├── Forecast.tsx          # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
-    ├── ActualizarDatos.tsx   # Hub central de carga — 4 módulos: Costos, Gastos, Ingresos, Nuevas Ventas* (*próximamente)
-    ├── ActualizarCostos.tsx  # Cartola bancaria → tablas costos + remuneraciones (ver sección dedicada)
-    ├── ActualizarGastos.tsx  # Cartola bancaria → tabla gastos (ver sección dedicada)
-    └── ActualizarVentas.tsx  # Reporte Nubox CSV → tabla ventas (ver sección dedicada)
+    ├── ActualizarDatos.tsx          # Hub central de carga — 4 módulos activos
+    ├── ActualizarCostos.tsx         # Cartola bancaria → tablas costos + remuneraciones (ver sección dedicada)
+    ├── ActualizarGastos.tsx         # Cartola bancaria → tabla gastos (ver sección dedicada)
+    ├── ActualizarVentas.tsx         # Reporte Nubox CSV → tabla ventas (ver sección dedicada)
+    └── ActualizarEstadoFacturas.tsx # Cartola bancaria → cambia estado Emitida→Pagada en tabla ventas (ver sección dedicada)
 ```
 
 Y los archivos de soporte del Forecast:
@@ -693,7 +694,109 @@ Valores fijos: `cuenta_cble = '5101-01'`, `descripcion_cta = 'VENTAS'`, `empresa
 
 > **Por qué importa:** `new Date("2026-04-01")` interpreta la fecha como UTC midnight. En Chile (UTC-3/UTC-4), eso es el 31 de Marzo a las 21:00 local, por lo que `getMonth()` devuelve Marzo en vez de Abril. Este bug causó que pagos de Abril aparecieran en Marzo en el Cashflow (PR #44, mayo 2026).
 
+---
+
+## Vista ActualizarEstadoFacturas — reglas específicas
+
+Ruta: `/actualizar-estado-facturas`. Lee la cartola bancaria Santander (.xlsx) y actualiza el estado de facturas en la tabla `ventas` de Supabase de `Emitida` → `Pagada`.
+
+### Diferencias clave vs otros módulos de carga
+
+| Aspecto | Costos / Gastos / Ventas | Estado Facturas |
+|---------|--------------------------|-----------------|
+| Operación Supabase | INSERT | UPDATE (+ INSERT en caso parcial) |
+| Fuente de matching | Catálogo de proveedores | RUT extraído de la descripción + monto exacto |
+| Columna de agrupación | CARGO/ABONO = C (cargos) | CARGO/ABONO = A (abonos) |
+| Tabla destino | costos / gastos / ventas | ventas (solo UPDATE de estado y fecha_pago) |
+
+### Lectura de la cartola
+
+Igual que ActualizarCostos, pero filtra **abonos** (CARGO/ABONO = "A" o monto positivo):
+- **CartolaHistCtaCte**: header fila 16 (índice 15), datos desde fila 17
+- **CartolaProvisoria**: header fila 13 (índice 12), datos desde fila 14
+- Se detiene al encontrar `"Resumen comisiones"` (case insensitive)
+
+### Extracción de RUT del pagador
+
+La descripción del movimiento sigue el patrón: `{RUT} Transf.? {nombre_parcial}`
+
+El RUT puede aparecer en dos formatos:
+- **Normalizado por el banco**: `0776774340 Transf. CLIENTE` (dígitos con leading zero)
+- **Con puntos y guión**: `77.719.165-9 Transf. CLIENTE`
+
+```typescript
+function extractRutFromDesc(desc: string): string {
+  const m1 = desc.match(/^(\d{8,12})\s+Transf\.?(\s|$)/i)
+  if (m1) return m1[1]
+  const m2 = desc.match(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK])\s+Transf\.?(\s|$)/i)
+  if (m2) return m2[1]
+  return ''
+}
+```
+
+**Normalización de RUT** para comparación: elimina `.`, `-`, espacios y leading zeros.
+```typescript
+const normRut = (s: string) => (s ?? '').replace(/[.\-\s]/g, '').replace(/^0+/, '') || '0'
+```
+
+### Catálogo de aliases (`ALIAS_CATALOG`)
+
+Clientes que pagan vía terceros. Hardcodeado en `ActualizarEstadoFacturas.tsx` como fuente de verdad garantizada; los aliases de Supabase (`Catalogo_Clientes`) se suman de forma aditiva.
+
+| desc_mov (keyword en descripción) | RUT cliente | Cliente |
+|----------------------------------|-------------|---------|
+| `0765817307 PAGO PROVEEDOR PODCAST` | 76581730-7 | NOISE SPA |
+| `0765500818 Transf. Chipax SpA` | 76477884-7 | AGROINTEGRAL SPA |
+| `0765500818 Transf. Chipax SpA` | 76389181-K | VENTA DE INSUMOS AGRICOLAS MATHIAS QUIROZ AHUMADA E.I.R.L. |
+
+Un mismo alias puede mapear a múltiples clientes — el desempate es por monto exacto.
+
+**Tabla `Catalogo_Clientes` en Supabase** (fuente aditiva):
+
+| Columna | Tipo | Notas |
+|---------|------|-------|
+| `"RUT"` | TEXT | Quoted uppercase en PostgreSQL |
+| `cliente` | TEXT | |
+| `descripcion_movimiento` | TEXT | Keyword que debe aparecer en la descripción del movimiento |
+
+### Algoritmo de matching — 3 fases
+
+**Phase 1 — Exacto (RUT + monto):**
+- Resuelve RUTs: extrae del banco + aliases por keyword en descripción
+- Busca en `ventas.Emitida` donde `rutNorm` ∈ ruts y `monto_bruto` === abono.monto (peso exacto, con `Number()` por NUMERIC de Supabase)
+- Si hay match → `MatchSimple`, `estado → Pagada`, `fecha_pago = fecha abono`
+
+**Phase 1b — YA EXISTE:**
+- Si Phase 1 no encuentra Emitida pero hay match en `Pagada`/`Pagada_parcial` → alerta verde "Ya procesada"
+- Evita falsos parciales: consume el abono antes de llegar a Phase 3
+
+**Phase 2 — Doble pago mismo mes:**
+- Para cada par de abonos del mismo RUT + mismo mes que sumen exactamente el `monto_bruto` de una factura Emitida → `MatchDoble`, `fecha_pago = fecha del segundo abono`
+
+**Phase 3 — Parcial cross-mes:**
+- Abono < `monto_bruto` de una factura Emitida del mismo RUT → `MatchParcial`
+- Acción: UPDATE original (Pagada_parcial, monto = abono, fecha_pago = fecha abono) + INSERT nueva fila (Emitida, monto = remainder, mismo folio)
+
+### UI de resultados
+
+- **Tabla de coincidencias**: checkboxes por fila, selección/deselección masiva
+- **Sección verde "Ya procesadas"**: abonos `kind: 'ya_existe'` con badge YA EXISTE y fecha_pago registrada
+- **Sección amber "Sin coincidencia"**: abonos `kind: 'warning'` para revisión manual
+- **Barra de resumen**: `N coincidencias · N ya procesadas · N sin coincidencia`
+- **Modo prueba**: muestra JSON preview sin ejecutar
+- **Modo producción**: aplica UPDATEs reales vía `supabaseAdmin` (service_role)
+
+### Campos actualizados en `ventas`
+
+En match simple/doble: `estado = 'Pagada'`, `fecha_pago = YYYY-MM-DD`
+En match parcial:
+- Fila original: `estado = 'Pagada_parcial'`, `monto_bruto = abono.monto`, `fecha_pago = fecha abono`
+- Nueva fila INSERT: todos los campos de la factura original, `estado = 'Emitida'`, `monto_bruto = remainder`, `fecha_pago = null`
+
+---
+
 ## Áreas incompletas
 
 - `Resumen.tsx` tabla Punto de Equilibrio: columnas PE/Gap/Cobertura son placeholders — requiere clasificación fijo/variable en la fuente de datos
 - Sin toggle de sidebar en mobile (sidebar oculta en <860px sin menú hamburguesa)
+- `ActualizarEstadoFacturas`: caso Parcial cross-mes (Phase 3) pendiente de validar con datos reales
