@@ -59,8 +59,13 @@ const normRut = (s: string) =>
   (s ?? '').replace(/[.\-\s]/g, '').replace(/^0+/, '') || '0'
 
 function extractRutFromDesc(desc: string): string {
-  const m = desc.match(/^(\d{8,12})\s+Transf\.?\s/i)
-  return m ? m[1] : ''
+  // Formato 1: dígitos normalizados por el banco: "0776774340 Transf..."
+  const m1 = desc.match(/^(\d{8,12})\s+Transf\.?(\s|$)/i)
+  if (m1) return m1[1]
+  // Formato 2: RUT con puntos y guión: "77.719.165-9 Transf..."
+  const m2 = desc.match(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK])\s+Transf\.?(\s|$)/i)
+  if (m2) return m2[1]
+  return ''
 }
 
 function parseXlsxDate(v: unknown): string {
@@ -192,7 +197,8 @@ function runMatching(
       continue
     }
     const candidates = facturas.filter(f =>
-      !usedFac.has(f.id) && ruts.includes(f.rutNorm) && f.monto_bruto === abono.monto
+      !usedFac.has(f.id) && ruts.includes(f.rutNorm) &&
+      Math.round(Number(f.monto_bruto)) === Math.round(abono.monto)
     )
     if (candidates.length >= 1) {
       matches.push({ kind: 'simple', abono, factura: candidates[0], _sel: true })
@@ -220,7 +226,8 @@ function runMatching(
         if (usedAbo.has(a1._idx) || usedAbo.has(a2._idx)) continue
         const sum = a1.monto + a2.monto
         const fac = facturas.find(f =>
-          !usedFac.has(f.id) && f.rutNorm === rutKey && f.monto_bruto === sum
+          !usedFac.has(f.id) && f.rutNorm === rutKey &&
+          Math.round(Number(f.monto_bruto)) === Math.round(sum)
         )
         if (!fac) continue
         const [first, second] = a1.fecha <= a2.fecha ? [a1, a2] : [a2, a1]
@@ -243,10 +250,10 @@ function runMatching(
       continue
     }
     const partials = facturas.filter(f =>
-      !usedFac.has(f.id) && ruts.includes(f.rutNorm) && f.monto_bruto > abono.monto
+      !usedFac.has(f.id) && ruts.includes(f.rutNorm) && Number(f.monto_bruto) > abono.monto
     )
     if (partials.length === 1) {
-      matches.push({ kind: 'parcial', abono, factura: partials[0], remainder: partials[0].monto_bruto - abono.monto, _sel: true })
+      matches.push({ kind: 'parcial', abono, factura: partials[0], remainder: Number(partials[0].monto_bruto) - abono.monto, _sel: true })
       usedFac.add(partials[0].id)
       usedAbo.add(abono._idx)
     } else if (partials.length > 1) {
@@ -309,7 +316,7 @@ export default function ActualizarEstadoFacturas() {
         rut_cliente: (r.rut_cliente as string) ?? '',
         rutNorm: normRut((r.rut_cliente as string) ?? ''),
         cliente: (r.cliente as string) ?? '',
-        monto_bruto: r.monto_bruto as number,
+        monto_bruto: Number(r.monto_bruto),
         fecha_emision: (r.fecha_emision as string) ?? '',
         mes_economico: (r.mes_economico as string) ?? '',
         ano_eco: r.ano_eco as number,
