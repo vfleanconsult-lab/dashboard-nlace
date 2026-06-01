@@ -528,7 +528,7 @@ Consulta Supabase por el rango de fechas de la cartola y compara huellas `fecha_
 
 ### Catálogos
 
-**`CATALOG_SOFTWARE`** (23 proveedores) — matching por keywords en la glosa (case insensitive, `includes`)
+**`CATALOG_SOFTWARE`** (24 proveedores) — matching por keywords en la glosa (case insensitive, `includes`)
 - Todos van a tabla `costos`, cuenta `4101-09`, clasificacion `Costo_Gto_Explot`
 
 **`CATALOG_EQUIPO`** (11 personas) — matching por `id_norm` al inicio de la glosa (`startsWith`)
@@ -551,7 +551,7 @@ Consulta Supabase por el rango de fechas de la cartola y compara huellas `fecha_
 
 ### Catálogo
 
-**`CATALOG_GASTOS`** (10 categorías) — matching por keywords en la glosa con `norm()` (normaliza acentos: `LÍNEA == LINEA`). Orden importa: categorías específicas antes que genéricas.
+**`CATALOG_GASTOS`** (11 categorías) — matching por keywords en la glosa con `norm()` (normaliza acentos: `LÍNEA == LINEA`). Orden importa: categorías específicas antes que genéricas.
 
 | # | Categoría | Tipo_Cuenta | Cuenta | Keywords clave |
 |---|-----------|-------------|--------|----------------|
@@ -561,10 +561,11 @@ Consulta Supabase por el rango de fechas de la cartola y compara huellas `fecha_
 | 4 | Cobranza | Gasto_Cobranza | 4301-02 | NP PAYU, PAYU |
 | 5 | Abogados | Gasto_Legl | 4201-12 | RUT 76.229.620-9, FLORES ACEVEDO, NOTARIA |
 | 6 | Banco | Gasto_Adm | 4201-10 | COM.MANTENCION, LCA N°, INTERESES LINEA, SOBREGIRO |
-| 7 | Bencina | Gasto_Benc | 4201-26 | SHELL, ARAMCO, COMBUSTIBLE, BENCINA |
-| 8 | Restorant | Gasto_Rest | 4201-09 | STARBUCKS, UBER EATS, KHIPU, CAFE, RESTAURANT… |
-| 9 | Estacionamiento | Gasto_Mov | 4201-26 | SABA, PARKING, SIMPLEPARK, AKIPARK… |
-| 10 | Movilizacion | Gasto_Mov | 4201-26 | CABIFY, UBER, SMARTYCAR |
+| 7 | Otros | Gasto_Otros | 4301-05 | PENTA HIPOTECARIO, MERPAGO*MELIMAS |
+| 8 | Bencina | Gasto_Benc | 4201-26 | SHELL, ARAMCO, COMBUSTIBLE, BENCINA |
+| 9 | Restorant | Gasto_Rest | 4201-09 | STARBUCKS, SBX ROSARIO, UBER EATS, KHIPU, CAFE, RESTAURANT, NUNOA, LUNKAI, MERCADOPAGO *LAFR, EL TOLDO AZUL, POINT 24H… |
+| 10 | Estacionamiento | Gasto_Mov | 4201-26 | SABA, PARKING, SIMPLEPARK, AKIPARK, SUCURSAL PARQUE, VIDA PARQUE, CONCESA, ROSARIO NORTE… |
+| 11 | Movilizacion | Gasto_Mov | 4201-26 | CABIFY, UBER, SMARTYCAR |
 
 > **Restorant va antes de Movilizacion** para que "UBER EATS" clasifique como restaurante y no como taxi.
 
