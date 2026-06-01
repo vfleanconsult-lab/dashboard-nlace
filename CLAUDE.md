@@ -60,11 +60,12 @@ src/
     ├── EstadoResultado.tsx # Estado de Resultado — tabla YTD + evolución mensual por partida contable
     ├── Cashflow.tsx          # Flujo de caja — tabla 12 meses × 16 filas, agrupado por Fecha_Pago (solo 2026+)
     ├── Forecast.tsx          # Proyección de caja — modelo de cobranza configurable, mes actual → Dic año en curso
-    ├── ActualizarDatos.tsx          # Hub central de carga — 4 módulos activos
+    ├── ActualizarDatos.tsx          # Hub central de carga — 5 módulos activos
     ├── ActualizarCostos.tsx         # Cartola bancaria → tablas costos + remuneraciones (ver sección dedicada)
     ├── ActualizarGastos.tsx         # Cartola bancaria → tabla gastos (ver sección dedicada)
     ├── ActualizarVentas.tsx         # Reporte Nubox CSV → tabla ventas (ver sección dedicada)
-    └── ActualizarEstadoFacturas.tsx # Cartola bancaria → cambia estado Emitida→Pagada en tabla ventas (ver sección dedicada)
+    ├── ActualizarEstadoFacturas.tsx # Cartola bancaria → cambia estado Emitida→Pagada en tabla ventas (ver sección dedicada)
+    └── IngresoManualPartidas.tsx    # Wizard 3 pasos → INSERT manual en cualquier tabla Supabase (ver sección dedicada)
 ```
 
 Y los archivos de soporte del Forecast:
@@ -469,13 +470,14 @@ En todos los arrays por mes (`ventasRecurrentesMes`, `ventasNuevasMes`, `remDire
 
 ### Hub de navegación
 
-`ActualizarDatos.tsx` (`/actualizar`) es la página de entrada con 4 tarjetas de módulos:
-- **Costos** (`/actualizar-costos`) — activo
-- **Gastos** (`/actualizar-gastos`) — activo
-- **Ingresos** (`/actualizar-ventas`) — activo (color `nl-success`, verde)
-- **Nuevas Ventas** — próximamente (disabled)
+`ActualizarDatos.tsx` (`/actualizar`) es la página de entrada con 5 tarjetas de módulos (grid 3 columnas):
+- **Costos** (`/actualizar-costos`) — color `nl-primary` (azul)
+- **Gastos** (`/actualizar-gastos`) — color `nl-accent` (naranja)
+- **Ingresos** (`/actualizar-ventas`) — color `nl-success` (verde)
+- **Estado Facturas** (`/actualizar-estado-facturas`) — color `violet`
+- **Ingreso Manual** (`/ingreso-manual`) — color `slate`
 
-Al añadir un nuevo módulo activo, agregar su color en los mapas `colorMap` e `iconColorMap` de `ActualizarDatos.tsx` y extender los condicionales de label y chevron.
+Al añadir un nuevo módulo activo, agregar su color en los mapas `colorMap` e `iconColorMap` de `ActualizarDatos.tsx`.
 
 El ítem del Sidebar apunta a `/actualizar` con label "Actualizar Datos".
 
@@ -792,6 +794,103 @@ En match simple/doble: `estado = 'Pagada'`, `fecha_pago = YYYY-MM-DD`
 En match parcial:
 - Fila original: `estado = 'Pagada_parcial'`, `monto_bruto = abono.monto`, `fecha_pago = fecha abono`
 - Nueva fila INSERT: todos los campos de la factura original, `estado = 'Emitida'`, `monto_bruto = remainder`, `fecha_pago = null`
+
+---
+
+## Vista IngresoManualPartidas — reglas específicas
+
+Ruta: `/ingreso-manual`. Wizard de 3 pasos para registrar una partida contable directamente en Supabase sin importar ningún archivo. No usa `useData()`, `useFilter()` ni `PageHeader`.
+
+### Diferencias clave vs otros módulos de carga
+
+| Aspecto | Costos / Gastos / Ventas / Estado Facturas | Ingreso Manual |
+|---------|---------------------------------------------|----------------|
+| Entrada | Archivo (.xlsx o .csv) | Sin archivo — formulario manual |
+| Operación Supabase | INSERT o UPDATE en lote | INSERT de una sola fila |
+| Tabla destino | Fija por módulo | Elegida por el usuario en paso 1 |
+| Cuenta contable | Derivada del catálogo o fija | Elegida por el usuario en paso 2 (dinámica desde Supabase) |
+| Campos del formulario | N/A | Dinámicos según la tabla elegida |
+
+### Flujo — 3 pasos secuenciales
+
+**Paso 1 — Selección de tabla**
+El usuario elige entre: `ventas`, `costos`, `gastos`, `remuneraciones`. Cada tabla tiene tarjeta con color propio.
+
+**Paso 2 — Selección de cuenta contable**
+Query dinámica: `SELECT DISTINCT cuenta_cble, descripcion_cta FROM {tabla} WHERE empresa_id = ...`
+Se adapta automáticamente si las cuentas cambian en la BD — no hay hardcodeo.
+
+**Paso 3 — Formulario de ingreso**
+Campos comunes a todas las tablas:
+- `fecha_emision` (requerido), `fecha_pago`, `fecha_vencimiento`
+- `monto_bruto` (requerido, siempre positivo)
+- `estado` (select: Emitida / Pagada / Pagada_parcial / Anulada, default: Emitida)
+- `mes_economico` (auto-derivado de `fecha_emision`; sobreescribible manualmente)
+
+Campos adicionales según tabla:
+- **ventas**: `folio` (req.), `rut_cliente` (req.), `cliente` (req.)
+- **costos**: `descripcion_glosa`, `clasificacion_cto` (select dinámico), `tipo_cuenta` (select dinámico)
+- **gastos**: `descripcion_glosa`, `clasificacion_gasto` (select dinámico, req.), `tipo_cuenta` (select dinámico, req.)
+- **remuneraciones**: solo campos comunes
+
+Los selects de `clasificacion_gasto`, `tipo_cuenta`, `clasificacion_cto` se cargan dinámicamente con `SELECT DISTINCT` desde la tabla elegida al entrar al paso 3.
+
+### Comportamiento del campo `mes_economico`
+
+- Al escribir `fecha_emision`, `mes_economico` se auto-rellena con `YYYY-MM` derivado.
+- Si el usuario edita `mes_economico` manualmente, se marca como `_mes_manual = '1'` y deja de seguir a `fecha_emision`.
+- `ano_eco` siempre se deriva de `mes_economico` al construir el INSERT: `parseInt(mes.split('-')[0])`.
+
+### Modo prueba / producción
+
+Igual que el resto de módulos:
+- **Modo prueba**: muestra JSON del objeto que se insertaría, sin ejecutar.
+- **Modo producción**: INSERT real vía `supabaseAdmin` (service_role).
+
+### Campos insertados por tabla
+
+**`ventas`:** `empresa_id · cuenta_cble · descripcion_cta · folio · rut_cliente · cliente · monto_bruto · fecha_emision · fecha_pago · fecha_vencimiento · estado · mes_economico · ano_eco`
+
+**`costos`:** `empresa_id · cuenta_cble · descripcion_cta · monto_bruto · fecha_emision · fecha_pago · fecha_vencimiento · estado · mes_economico · ano_eco · descripcion_glosa · clasificacion_cto · tipo_cuenta`
+(clasificacion_gasto = null)
+
+**`gastos`:** `empresa_id · cuenta_cble · descripcion_cta · monto_bruto · fecha_emision · fecha_pago · fecha_vencimiento · estado · mes_economico · ano_eco · descripcion_glosa · clasificacion_gasto · tipo_cuenta`
+(clasificacion_cto = null)
+
+**`remuneraciones`:** `empresa_id · cuenta_cble · descripcion_cta · monto_bruto · fecha_emision · fecha_pago · fecha_vencimiento · estado · mes_economico · ano_eco`
+(clasificacion_gasto = 'Retiros', tipo_cuenta = 'Gasto_Retiro' — fijos)
+
+### Breadcrumb y navegación
+
+El wizard tiene un breadcrumb navegable: clicar "1 · Tabla" vuelve al paso 1; clicar "2 · Cuenta" vuelve al paso 2 (solo si hay tabla seleccionada). Al completar el INSERT se ofrecen dos opciones: "Nueva partida — misma cuenta" (vuelve al paso 3 con form vacío) o "Nuevo ingreso" (vuelve al paso 1).
+
+---
+
+## Entorno de desarrollo — herramientas del sistema
+
+Herramientas instaladas en el Mac mini (desde junio 2026):
+
+| Herramienta | Ruta | Uso |
+|-------------|------|-----|
+| Homebrew | `/opt/homebrew/bin/brew` | Gestor de paquetes base |
+| GitHub CLI (`gh`) | `/opt/homebrew/bin/gh` | Crear PRs, mergear, gestionar ramas — autenticado como `vfleanconsult-lab` |
+| jq | `/usr/bin/jq` | Procesamiento JSON en terminal |
+| Playwright + Chromium | `/opt/homebrew/bin/playwright` | Verificaciones visuales del dashboard |
+
+> **Importante:** usar siempre rutas absolutas `/opt/homebrew/bin/gh` etc. en scripts y comandos, porque el PATH de las sesiones de Claude Code no incluye `/opt/homebrew/bin` por defecto.
+
+### Flujo git completo desde Claude Code
+
+```bash
+git checkout -b feat/nombre-rama
+# ... cambios ...
+git add src/pages/NuevaPagina.tsx src/App.tsx
+git commit -m "feat: descripción"
+git push -u origin feat/nombre-rama
+/opt/homebrew/bin/gh pr create --title "..." --body "..."
+/opt/homebrew/bin/gh pr merge NUMBER --merge --delete-branch
+git checkout main && git pull origin main
+```
 
 ---
 
