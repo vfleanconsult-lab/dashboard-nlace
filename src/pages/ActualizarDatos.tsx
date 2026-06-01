@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Package, Receipt, TrendingUp, ChevronRight, RefreshCw } from 'lucide-react'
+import { Package, Receipt, TrendingUp, ChevronRight, RefreshCw, PenLine } from 'lucide-react'
 
 const MODULES = [
   {
@@ -34,6 +34,14 @@ const MODULES = [
     color: 'violet',
     active: true,
   },
+  {
+    to: '/ingreso-manual',
+    label: 'Ingreso Manual',
+    description: 'Registra una partida contable directamente en cualquier tabla de Supabase',
+    Icon: PenLine,
+    color: 'slate',
+    active: true,
+  },
 ]
 
 export default function ActualizarDatos() {
@@ -48,19 +56,21 @@ export default function ActualizarDatos() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl">
         {MODULES.map(({ to, label, description, Icon, color }) => {
           const colorMap: Record<string, string> = {
             'nl-primary': 'bg-nl-primary-10 text-nl-primary border-nl-primary/20 hover:border-nl-primary/50 hover:bg-nl-primary-10',
             'nl-accent': 'bg-orange-50 text-nl-accent border-orange-200 hover:border-nl-accent/50 hover:bg-orange-50',
             'nl-success': 'bg-green-50 text-nl-success-dark border-green-200 hover:border-green-400/50 hover:bg-green-50',
             'violet': 'bg-violet-50 text-violet-600 border-violet-200 hover:border-violet-400/50 hover:bg-violet-50',
+            'slate': 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400/50 hover:bg-slate-50',
           }
           const iconColorMap: Record<string, string> = {
             'nl-primary': 'text-nl-primary',
             'nl-accent': 'text-nl-accent',
             'nl-success': 'text-nl-success-dark',
             'violet': 'text-violet-600',
+            'slate': 'text-slate-600',
           }
           const cardClass = `rounded-2xl border p-6 transition-all duration-200 cursor-pointer ${colorMap[color]}`
 
