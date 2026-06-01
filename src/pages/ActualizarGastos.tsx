@@ -51,6 +51,12 @@ const CATALOG_GASTOS = [
     keywords: ['COM.MANTENCION', 'MANTENCION PLAN', 'AMORTIZACION', 'AMORTIZACIÓN', 'LCA N°', 'INTERESES LINEA', 'SOBREGIRO'],
   },
   {
+    clasificacion_gasto: 'Otros', tipo_cuenta: 'Gasto_Otros',
+    cuenta_cble: '4301-05', descripcion_cta: 'OTROS GASTOS VENTAS',
+    empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a',
+    keywords: ['PENTA HIPOTECARIO', 'MERPAGO*MELIMAS'],
+  },
+  {
     clasificacion_gasto: 'Bencina', tipo_cuenta: 'Gasto_Benc',
     cuenta_cble: '4201-26', descripcion_cta: 'LOCOMOCION Y COLACION',
     empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a',
@@ -63,13 +69,14 @@ const CATALOG_GASTOS = [
     empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a',
     keywords: [
       'DUEMINT', 'VIRTUAL DUEMINT',
-      'STARBUCKS', 'JUAN VALDEZ', 'CAFE RITUAL', 'WORK CAFE', 'LA COMPANIA', 'DONDE CAMILO',
+      'STARBUCKS', 'SBX ROSARIO', 'JUAN VALDEZ', 'CAFE RITUAL', 'WORK CAFE', 'LA COMPANIA', 'DONDE CAMILO',
       'LA CABRERA', 'COFFEEBOT', 'SEMILLA', 'GLOBAL BREKKIE', 'PROCHIS FOODS', 'WENBIN LAI',
       'HARUKO', 'ARCO Y BALENO', 'TIRAMISU', 'LOS TRES ANTONIOS', 'AROMAS DE CAFE', 'BOULANGERIE',
       'DOMO GASTRO', 'DOMANI', 'PHILIA', 'TIP Y TAP', 'MARGO', 'RISHTEDAR', 'MARIBERICO',
       'UBER EATS', 'JUSTO', 'FUENTE SUIZA', 'LA FUENTE', 'MAMAKUNA', 'TERRITORIA', 'LE BISTROT',
       'CAFE MAGN', 'DACARROW', 'SPID MUT', 'RESTAURANT', 'CAFETERIA', 'OPERADORA GASTRONO',
       'CAFE', 'FUDO', 'KHIPU', 'MP *MAX',
+      'NUNOA', 'LUNKAI', 'MERCADOPAGO *LAFR', 'EL TOLDO AZUL', 'POINT 24H',
     ],
   },
   {
@@ -79,6 +86,7 @@ const CATALOG_GASTOS = [
     keywords: [
       'SABA ', 'SAAB', 'ESTACIONAMIENTO', 'EDIFICIO NUEVA MAN', 'AKIPARK',
       'NET PARKING', 'SIMPLEPARK', 'APOQUINDO 4700', 'PARKING', 'PARK',
+      'SUCURSAL PARQUE', 'VIDA PARQUE', 'CONCESA', 'ROSARIO NORTE',
     ],
   },
   {
