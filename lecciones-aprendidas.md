@@ -162,3 +162,104 @@ La inversión en documentación (CLAUDE.md, commits descriptivos, este archivo) 
 ---
 
 *Documento generado en sesión del 28/05/2026 — Dashboard NLACE*
+
+---
+
+## Sesión 01/06/2026
+
+### Lo que se construyó
+
+**Módulo Ingreso Manual de Partidas** (`/ingreso-manual`)
+
+Wizard de 3 pasos para registrar partidas contables directamente en Supabase, sin necesidad de importar un archivo:
+
+1. **Paso 1 — Selección de tabla**: ventas / costos / gastos / remuneraciones, con tarjetas visuales coloreadas
+2. **Paso 2 — Cuenta contable**: query dinámica `SELECT DISTINCT cuenta_cble, descripcion_cta` desde Supabase — se adapta automáticamente si las cuentas cambian
+3. **Paso 3 — Formulario**: campos según la tabla seleccionada (ventas incluye folio/rut/cliente; gastos incluye clasificacion_gasto/tipo_cuenta; los selects de valores como clasificacion_cto se cargan dinámicamente desde la BD)
+
+Características:
+- `mes_economico` se auto-deriva de `fecha_emision` al escribir la fecha
+- Modo prueba (JSON preview sin insertar) / Modo producción (INSERT real)
+- Validación de campos requeridos antes de enviar
+- Breadcrumb navegable entre pasos
+- Pantalla de éxito con opción "nueva partida misma cuenta" o "nuevo ingreso"
+- Tarjeta "Ingreso Manual" añadida al hub `/actualizar` (grid ampliado a 3 columnas)
+
+---
+
+### Entorno local — herramientas instaladas
+
+En esta sesión se configuró el Mac mini con todas las herramientas necesarias para que Claude Code opere de forma autónoma en el flujo git + GitHub:
+
+| Herramienta | Ruta | Uso |
+|-------------|------|-----|
+| Homebrew | `/opt/homebrew/bin/brew` | Gestor de paquetes base |
+| GitHub CLI (`gh`) | `/opt/homebrew/bin/gh` | PR, merge, ramas — autenticado como `vfleanconsult-lab` |
+| jq | `/usr/bin/jq` | Procesamiento JSON en terminal |
+| Playwright + Chromium | `/opt/homebrew/bin/playwright` | Verificaciones visuales del dashboard |
+
+**Regla importante:** usar siempre rutas absolutas `/opt/homebrew/bin/gh` etc. porque el PATH de las sesiones de Claude Code no incluye `/opt/homebrew/bin` por defecto.
+
+---
+
+### 10. Flujo git completo desde Claude Code (con gh CLI)
+
+Con `gh` instalado y autenticado, Claude Code puede ejecutar el ciclo completo sin intervención:
+
+```bash
+git checkout -b feat/nombre-rama
+# ... hacer cambios ...
+git add <archivos específicos>
+git commit -m "feat: descripción"
+git push -u origin feat/nombre-rama     # requiere gh auth para HTTPS
+gh pr create --title "..." --body "..."
+gh pr merge --merge --delete-branch
+```
+
+**Antes** (sin gh): el usuario tenía que hacer push y crear/mergear el PR manualmente porque el remote HTTPS pedía credenciales que no funcionan con login de Google.
+
+**Ahora**: Claude Code hace todo el flujo excepto lo que requiere `sudo`.
+
+---
+
+### 11. Login con Google en GitHub — cómo autenticar la terminal
+
+Si el usuario usa Google OAuth para entrar a GitHub (no tiene password de GitHub), la autenticación en terminal se hace así:
+
+```bash
+# Opción 1 — gh CLI (recomendado, soporta Google via browser)
+gh auth login
+# → GitHub.com → HTTPS → Login with a web browser
+
+# Opción 2 — Personal Access Token
+# github.com/settings/tokens/new → scope: repo → usar token como password en git push
+```
+
+**No usar**: `git push` con usuario/password — falla con Google OAuth porque no hay password de GitHub.
+
+---
+
+### 12. Limpieza de ramas mergeadas
+
+Después de cada sprint o al acumular ramas, limpiar con:
+
+```bash
+# Ver todas las ramas remotas
+/opt/homebrew/bin/gh api repos/OWNER/REPO/branches --paginate --jq '.[].name'
+
+# Verificar que no hay PRs abiertos
+/opt/homebrew/bin/gh api repos/OWNER/REPO/pulls --jq '.[].head.ref'
+
+# Eliminar rama remota
+/opt/homebrew/bin/gh api -X DELETE repos/OWNER/REPO/git/refs/heads/RAMA
+
+# Sincronizar y limpiar local
+git checkout main && git pull origin main
+git branch -D nombre-rama
+```
+
+En esta sesión se eliminaron 9 ramas mergeadas dejando solo `main`.
+
+---
+
+*Sesión del 01/06/2026 — Dashboard NLACE*
