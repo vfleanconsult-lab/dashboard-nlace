@@ -350,6 +350,7 @@ El universo de categorías es la unión de las 4 claves para que filas con activ
 | Representación y Viáticos | `Cuenta_Cble === "4201-09"` + Estado Pagada |
 | Locomoción | `Cuenta_Cble === "4201-26"` + Estado Pagada |
 | Legales y Notariales | `Cuenta_Cble === "4201-12"` + Estado Pagada |
+| Otros Gastos | `Tipo_Cuenta === "Gasto_Otros"` + Estado Pagada |
 | Remuneración Director | `Cuenta_Cble === "4401-02"` + Estado Pagada |
 
 ## Vista Forecast — reglas específicas
