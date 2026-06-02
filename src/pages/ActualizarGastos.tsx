@@ -219,9 +219,11 @@ export default function ActualizarGastos() {
         const row = r as unknown[]
         if (!row) continue
         if (typeof row[0] === 'string' && row[0].toLowerCase().includes('resumen comisiones')) break
-        if (typeof row[0] !== 'number') continue
-        const monto = row[0] as number
-        if (monto >= 0) continue
+        const rawMonto = row[0]
+        const monto = typeof rawMonto === 'number' ? rawMonto
+          : typeof rawMonto === 'string' ? parseFloat(rawMonto.replace(/\./g, '').replace(',', '.'))
+          : NaN
+        if (!isFinite(monto) || monto >= 0) continue
         const glosa = (row[1] as string) || ''
         const fecha = parseDate(row[3])
         const monto_bd = Math.abs(monto)
