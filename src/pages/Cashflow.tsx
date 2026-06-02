@@ -31,6 +31,7 @@ interface MonthCF {
   representacion: number
   locomocion: number
   legales: number
+  otrosGastos: number
   gastos: number
   remDirector: number
   saldoFinal: number
@@ -61,6 +62,7 @@ const ROW_DEFS: RowDef[] = [
   { key: 'representacion',  label: 'Representación y Viáticos',  level: 1, isSubtotal: false },
   { key: 'locomocion',      label: 'Locomoción',                 level: 1, isSubtotal: false },
   { key: 'legales',         label: 'Legales y Notariales',       level: 1, isSubtotal: false },
+  { key: 'otrosGastos',     label: 'Otros Gastos',               level: 1, isSubtotal: false },
   { key: 'remDirector',     label: 'Remuneración Director',      level: 0, isSubtotal: false },
   { key: 'saldoFinal',      label: 'Saldo Final',                level: 0, isSubtotal: true, isBalance: true },
 ]
@@ -69,7 +71,7 @@ const EMPTY_CF: MonthCF = {
   saldoInicial: 0, ventas: 0, otrosIngresos: 0, ingresos: 0,
   costoVenta: 0, otrosGastosExpl: 0, costos: 0,
   gastosAdm: 0, serviciosComp: 0, publicidad: 0, representacion: 0,
-  locomocion: 0, legales: 0, gastos: 0, remDirector: 0, saldoFinal: 0,
+  locomocion: 0, legales: 0, otrosGastos: 0, gastos: 0, remDirector: 0, saldoFinal: 0,
 }
 
 function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
@@ -121,14 +123,15 @@ function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
     const representacion  = sumPag(r => D.getCuenta(r) === '4201-09')
     const locomocion      = sumPag(r => D.getCuenta(r) === '4201-26')
     const legales         = sumPag(r => D.getCuenta(r) === '4201-12')
-    const gastos          = gastosAdm + serviciosComp + publicidad + representacion + locomocion + legales
+    const otrosGastos     = sumPag(r => D.getTipoCuenta(r) === 'Gasto_Otros')
+    const gastos          = gastosAdm + serviciosComp + publicidad + representacion + locomocion + legales + otrosGastos
     const remDirector     = sumPag(r => D.getCuenta(r) === '4401-02')
     const saldoFinal      = saldoInicial + ingresos - costos - gastos - remDirector
 
     result.set(ym, {
       saldoInicial, ventas, otrosIngresos, ingresos,
       costoVenta, otrosGastosExpl, costos,
-      gastosAdm, serviciosComp, publicidad, representacion, locomocion, legales, gastos,
+      gastosAdm, serviciosComp, publicidad, representacion, locomocion, legales, otrosGastos, gastos,
       remDirector, saldoFinal,
     })
     prevFinal = saldoFinal
