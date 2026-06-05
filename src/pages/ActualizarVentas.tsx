@@ -286,15 +286,17 @@ export default function ActualizarVentas() {
   }, [processFile])
 
   const toggleRow = (idx: number) => setSelected(p => ({ ...p, [idx]: !p[idx] }))
+  const isDupe    = (r: VentaRow) => dupeKeys.has(fpKey(r.folio, r.fecha_emision, r.rut_cliente))
+
   const toggleAll = () => {
-    const allOn = mainRows.every(r => selected[r._idx])
-    setSelected(p => { const n = { ...p }; mainRows.forEach(r => { n[r._idx] = !allOn }); return n })
+    const selectableRows = mainRows.filter(r => !isDupe(r))
+    const allOn = selectableRows.every(r => selected[r._idx])
+    setSelected(p => { const n = { ...p }; selectableRows.forEach(r => { n[r._idx] = !allOn }); return n })
   }
 
-  const selRows   = mainRows.filter(r => selected[r._idx])
-  const isDupe    = (r: VentaRow) => dupeKeys.has(fpKey(r.folio, r.fecha_emision, r.rut_cliente))
+  const selRows   = mainRows.filter(r => selected[r._idx] && !isDupe(r))
   const dupeCount = mainRows.filter(isDupe).length
-  const allOn     = mainRows.length > 0 && mainRows.every(r => selected[r._idx])
+  const allOn     = mainRows.filter(r => !isDupe(r)).length > 0 && mainRows.filter(r => !isDupe(r)).every(r => selected[r._idx])
   const ncAntCount = mainRows.filter(r => r.isNcAnterior).length
 
   function buildRow(r: VentaRow) {
@@ -499,20 +501,24 @@ export default function ActualizarVentas() {
                       return (
                         <tr
                           key={r._idx}
-                          onClick={() => toggleRow(r._idx)}
-                          className={`cursor-pointer border-b border-nl-border-soft last:border-0 transition-opacity ${
-                            selected[r._idx] ? 'opacity-100' : 'opacity-35'
+                          onClick={() => { if (!dupe) toggleRow(r._idx) }}
+                          className={`border-b border-nl-border-soft last:border-0 transition-opacity ${
+                            dupe ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'
                           } ${
-                            dupe           ? 'bg-nl-danger/4' :
+                            selected[r._idx] && !dupe ? 'opacity-100' : dupe ? '' : 'opacity-35'
+                          } ${
+                            dupe           ? 'bg-nl-danger/8' :
                             r.isNcAnterior ? 'bg-amber-50/60' :
                             i % 2 === 0    ? 'bg-nl-white' : 'bg-nl-bg/40'
-                          } hover:bg-green-50/40`}
+                          } ${!dupe ? 'hover:bg-green-50/40' : ''}`}
                         >
                           <td className="px-3 py-2">
                             <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                              selected[r._idx] ? 'bg-nl-success-dark border-nl-success-dark' : 'border-nl-border-ui bg-nl-white'
+                              dupe
+                                ? 'border-nl-danger/40 bg-nl-danger/10 cursor-not-allowed'
+                                : selected[r._idx] ? 'bg-nl-success-dark border-nl-success-dark' : 'border-nl-border-ui bg-nl-white'
                             }`}>
-                              {selected[r._idx] && <span className="text-[8px] text-white font-bold">✓</span>}
+                              {selected[r._idx] && !dupe && <span className="text-[8px] text-white font-bold">✓</span>}
                             </div>
                           </td>
                           <td className="px-3 py-2 font-mono text-nl-500">{r.fecha_emision}</td>
