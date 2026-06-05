@@ -175,8 +175,9 @@ export default function ActualizarVentas() {
   useEffect(() => {
     if (mainRows.length === 0) return
     setCheckingDupes(true)
+    const [y, m] = selectedMonth.split('-').map(Number)
     const fechaMin = `${selectedMonth}-01`
-    const fechaMax = `${selectedMonth}-31`
+    const fechaMax = `${selectedMonth}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
     ;(async () => {
       const { data } = await supabase
         .from('ventas')
