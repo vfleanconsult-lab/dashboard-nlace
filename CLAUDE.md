@@ -645,6 +645,11 @@ dupeKeys (fingerprints ya existentes en Supabase)
 
 Al cambiar `selectedMonth`, se resetean `selected`, `dupeKeys` y `checkingDupes`.
 
+**Regla de duplicados — doble bloqueo (PR #73 + #74, junio 2026):**
+- `isDupe(r)` devuelve `true` si la huella `folio|fecha_emision|rut_cliente` ya existe en `dupeKeys`.
+- Filas duplicadas: `onClick` deshabilitado, checkbox renderizado en rojo sin interacción, excluidas de `selRows` y `toggleAll` por código — no pueden subirse aunque el estado interno sea `true`.
+- `selRows` filtra `selected[r._idx] && !isDupe(r)` como doble garantía.
+
 ### Selector de mes
 
 - Por defecto: mes actual (`NOW_MONTH = YYYY-MM` calculado al montar).
@@ -672,8 +677,8 @@ FAC-EL 36  → ✓ disponible para cargar (reemplazo, folio más alto)
 
 - Huella: `folio|fecha_emision|rut_cliente` (todos normalizados).
 - **Normalización de RUT**: `normRut(s)` elimina puntos — `"76.229.620-9"` == `"76229620-9"`. Necesario porque Nubox exporta con puntos pero algunos registros históricos se cargaron sin ellos.
-- **Rango de consulta**: mes completo `YYYY-MM-01` → `YYYY-MM-31` (no solo el rango de fechas del CSV), para capturar registros aunque su `fecha_emision` difiera ligeramente.
-- Duplicados aparecen con badge **YA EXISTE**, desmarcados por defecto.
+- **Rango de consulta**: mes completo `YYYY-MM-01` → último día real del mes, calculado con `new Date(y, m, 0).getDate()`. **No usar `-31` fijo** — meses con <31 días (feb, abr, jun, sep, nov) generan error Postgres `22008` que el cliente silencia, dejando `dupeKeys` vacío y la detección inoperativa (bug corregido PR #74, junio 2026).
+- Duplicados aparecen con badge **YA EXISTE**, con checkbox **bloqueado** — no se pueden reactivar manualmente (PR #73, junio 2026).
 
 ### Campos insertados (`ventas`)
 
