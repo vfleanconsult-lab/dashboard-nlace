@@ -263,3 +263,61 @@ En esta sesión se eliminaron 9 ramas mergeadas dejando solo `main`.
 ---
 
 *Sesión del 01/06/2026 — Dashboard NLACE*
+
+---
+
+## Sesión 08/06/2026
+
+### Lo que se construyó
+
+**1. Optimización de CLAUDE.md**
+
+El archivo había crecido a 909 líneas mezclando arquitectura, implementación e historial. Se redujo a 616 líneas (-32%) eliminando:
+- Sección "Entorno de desarrollo" (ya en memoria del proyecto)
+- Conteos de filas de migración de mayo 2025 (datos obsoletos)
+- Cuerpos completos de funciones TypeScript (`norm()`, `isExcluded()`, `extractRutFromDesc()`) — están en el código
+- Snippets de código que solo ilustraban prosa ya escrita en texto
+- Referencias a números de PR (historial de git, no documentación)
+
+Todo el contenido crítico se conservó: reglas de negocio, invariantes de fechas, esquemas de campos, catálogos de matching, lógica de duplicados.
+
+**2. Autenticación con Clerk.com**
+
+Integración completa de login con restricción de dominio `@nlace.com` (configurada en panel de Clerk, no en código):
+
+- `src/main.tsx` — `ClerkProvider` envuelve toda la app, lee `VITE_CLERK_PUBLISHABLE_KEY`
+- `src/pages/LoginPage.tsx` — página de login con `NlaceLogo` + componente `<SignIn />` de Clerk
+- `src/components/ProtectedRoute.tsx` — redirige a `/login` si no hay sesión activa; spinner mientras Clerk carga
+- `src/App.tsx` — ruta `/login/*` pública; todas las rutas del dashboard envueltas en `<ProtectedRoute>`
+- `src/components/Sidebar.tsx` — botón "Cerrar sesión" con `useClerk().signOut({ redirectUrl: '/login' })`
+
+---
+
+### 13. Dónde documentar cada tipo de información
+
+Aclaración importante sobre dónde va cada cosa, para sesiones futuras:
+
+| Tipo de contenido | Dónde va |
+|-------------------|----------|
+| Arquitectura, reglas de negocio, esquemas de BD | `CLAUDE.md` |
+| Lecciones aprendidas, log de sesiones, patrones | `lecciones-aprendidas.md` (este archivo) |
+| Decisiones de contexto rápido entre sesiones | Memoria del proyecto (`.claude/memory/`) |
+| Historial de cambios con autor y fecha | `git log` (commits descriptivos) |
+
+**Regla:** `CLAUDE.md` es para lo que Claude necesita saber *siempre*. `lecciones-aprendidas.md` es para lo que el equipo necesita recordar entre sesiones. No mezclarlos.
+
+---
+
+### 14. Clerk en Vite — variable de entorno y dominio
+
+**Solo se necesita `VITE_CLERK_PUBLISHABLE_KEY`** — este proyecto es SPA puro sin backend. `CLERK_SECRET_KEY` es para servidores Node.js/Next.js y no aplica.
+
+**Pantalla en blanco en producción = error de runtime en browser**, no en Vercel. Los runtime logs de Vercel no capturan errores de SPAs estáticos. Para diagnosticar: abrir DevTools → Console en el browser.
+
+**Causa raíz del problema:** la variable en Vercel tenía un valor incorrecto. Solución: borrarla y recrearla con el valor exacto de la Publishable Key.
+
+**Si vuelve a pasar:** verificar primero el valor de `VITE_CLERK_PUBLISHABLE_KEY` en Vercel → Settings → Environment Variables antes de buscar causas en el código.
+
+---
+
+*Sesión del 08/06/2026 — Dashboard NLACE*
