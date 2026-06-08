@@ -11,6 +11,17 @@ Guía de navegación para Claude Code. Lee este archivo primero, luego los archi
 | Módulos de carga (ActualizarCostos, Gastos, Ventas, EstadoFacturas, IngresoManual) | `MODULOS_CARGA.md` |
 | Historial de sesiones, lecciones aprendidas, patrones de trabajo | `lecciones-aprendidas.md` |
 
+## Regla de documentación al cerrar sesión
+
+Al finalizar una sesión, actualizar el archivo correspondiente según el tipo de cambio:
+
+- Nuevo gotcha o cambio en Supabase → `SUPABASE.md`
+- Cambio en regla de negocio o lógica de página → `REGLAS_NEGOCIO.md`
+- Cambio en un módulo de carga → `MODULOS_CARGA.md`
+- Patrones de trabajo, lecciones de proceso, reflexiones → `lecciones-aprendidas.md`
+
+`lecciones-aprendidas.md` es para aprendizajes de proceso, no para reglas técnicas. Las reglas técnicas van en el archivo específico del área.
+
 ---
 
 ## Despliegue
