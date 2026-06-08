@@ -10,6 +10,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.8",
     "@nlace/ui-kit": "latest",
     "@supabase/supabase-js": "^2.105.3",
     "lucide-react": "^1.11.0",

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { NlaceLogo } from '@nlace/ui-kit'
-import { LayoutDashboard, TrendingUp, Package, Receipt, Clock, BarChart2, ArrowLeftRight, UploadCloud } from 'lucide-react'
+import { useClerk } from '@clerk/clerk-react'
+import { LayoutDashboard, TrendingUp, Package, Receipt, Clock, BarChart2, ArrowLeftRight, UploadCloud, LogOut } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/',                    label: 'Resumen Ejecutivo', Icon: LayoutDashboard },
@@ -15,6 +16,8 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar() {
+  const { signOut } = useClerk()
+
   return (
     <aside className="fixed top-0 left-0 bottom-0 w-56 bg-nl-white border-r border-nl-border-soft flex flex-col z-50">
       <div className="px-5 py-5 border-b border-nl-border-soft">
@@ -52,8 +55,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="px-5 py-4 border-t border-nl-border-soft">
-        <p className="text-[10px] font-mono text-nl-400">NLACE Dashboard v2</p>
+      <div className="px-3 py-4 border-t border-nl-border-soft space-y-3">
+        <p className="px-2 text-[10px] font-mono text-nl-400">NLACE Dashboard v2</p>
+        <button
+          onClick={() => signOut({ redirectUrl: '/login' })}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-[10px] text-[13px] font-body text-nl-700 hover:bg-nl-bg hover:text-nl-danger transition-all duration-[220ms] cursor-pointer"
+        >
+          <LogOut size={15} strokeWidth={1.75} className="shrink-0" />
+          Cerrar sesión
+        </button>
       </div>
     </aside>
   )
