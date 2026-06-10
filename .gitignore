@@ -4,7 +4,7 @@
 .env.*.local
 
 # Claude Code local commands (contain credentials)
-.claude/commands/
+# .claude/commands/ — habilitado para compartir skills del proyecto
 
 # Logs
 logs
