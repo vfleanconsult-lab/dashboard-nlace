@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Claude Code local commands (contain credentials)
+.claude/commands/
+
 # Logs
 logs
 *.log
