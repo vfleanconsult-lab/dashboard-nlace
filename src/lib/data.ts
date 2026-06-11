@@ -48,6 +48,7 @@ type SupabaseRow = {
   fecha_pago: string | null
   fecha_vencimiento: string | null
   cliente: string | null
+  folio: string | null
 }
 
 function supabaseToRow(r: SupabaseRow): Row {
@@ -67,6 +68,7 @@ function supabaseToRow(r: SupabaseRow): Row {
     'Fecha_Pago':           r.fecha_pago || '',
     'Fecha_Vencimiento':    r.fecha_vencimiento || '',
     'Cliente':              r.cliente || '',
+    'Folio':                r.folio || '',
   }
 }
 
@@ -82,7 +84,7 @@ async function fetchFromSupabase(): Promise<void> {
   const empresaId = empresas[0].id
 
   // 2. Descargar todos los registros con paginación
-  const SELECT = 'tipo,cuenta_cble,descripcion_cta,clasificacion_gasto,clasificacion_cto,tipo_cuenta,estado,mes_economico,ano_eco,monto_bruto,fecha_emision,fecha_pago,fecha_vencimiento,cliente'
+  const SELECT = 'tipo,cuenta_cble,descripcion_cta,clasificacion_gasto,clasificacion_cto,tipo_cuenta,estado,mes_economico,ano_eco,monto_bruto,fecha_emision,fecha_pago,fecha_vencimiento,cliente,folio'
   let allRows: SupabaseRow[] = []
   let from = 0
   const PAGE = 1000
@@ -343,6 +345,7 @@ export function groupGastosByClasif(rows: Row[]): Record<string, number> {
 }
 
 export interface FacturaImpaga {
+  folio: string
   cliente: string
   monto: number
   fechaVencimiento: string
@@ -360,6 +363,7 @@ export function calcFacturasImpagas(rows: Row[], today?: Date): FacturaImpaga[] 
       const venc = vencStr ? parseDateCL(vencStr) : null
       const diasVencida = venc ? Math.round((venc.getTime() - hoyMs) / 86400000) : 0
       return {
+        folio: r['Folio'] || '—',
         cliente: getCliente(r) || getDesc(r) || 'Sin nombre',
         monto: getMonto(r),
         fechaVencimiento: vencStr,

@@ -164,6 +164,10 @@ export default function Cobranzas() {
               badge={`${facturasImpagas.length} facturas`}
               columns={[
                 {
+                  header: 'Folio',
+                  accessor: f => <span className="font-mono text-[12px] text-nl-400">{f.folio}</span>,
+                },
+                {
                   header: 'Cliente',
                   accessor: f => <span className="font-medium text-nl-text">{f.cliente}</span>,
                 },
