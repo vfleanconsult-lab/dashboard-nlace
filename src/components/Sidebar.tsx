@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { NlaceLogo } from '@nlace/ui-kit'
 import { useClerk } from '@clerk/clerk-react'
-import { LayoutDashboard, TrendingUp, Package, Receipt, Clock, BarChart2, ArrowLeftRight, UploadCloud, LogOut } from 'lucide-react'
+import { LayoutDashboard, TrendingUp, Package, Receipt, Clock, BarChart2, ArrowLeftRight, UploadCloud, LogOut, CreditCard } from 'lucide-react'
 
 const NAV_ITEMS = [
   { to: '/',                    label: 'Resumen Ejecutivo', Icon: LayoutDashboard },
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/costos',              label: 'Costos',            Icon: Package         },
   { to: '/gastos',              label: 'Gastos',            Icon: Receipt         },
   { to: '/cobranzas',           label: 'Cobranzas',         Icon: Clock           },
+  { to: '/cuentas-por-pagar',   label: 'Cuentas por Pagar', Icon: CreditCard      },
   { to: '/estado-resultado',    label: 'Estado Resultado',  Icon: BarChart2       },
   { to: '/cashflow',            label: 'Cashflow',          Icon: ArrowLeftRight  },
   { to: '/forecast',            label: 'Forecast',          Icon: TrendingUp      },

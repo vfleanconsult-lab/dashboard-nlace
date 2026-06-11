@@ -17,6 +17,7 @@ import ActualizarVentas from './pages/ActualizarVentas'
 import ActualizarEstadoFacturas from './pages/ActualizarEstadoFacturas'
 import ActualizarDatos from './pages/ActualizarDatos'
 import IngresoManualPartidas from './pages/IngresoManualPartidas'
+import CuentasPorPagar from './pages/CuentasPorPagar'
 
 export default function App() {
   return (
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="actualizar-ventas" element={<ActualizarVentas />} />
         <Route path="actualizar-estado-facturas" element={<ActualizarEstadoFacturas />} />
         <Route path="ingreso-manual" element={<IngresoManualPartidas />} />
+        <Route path="cuentas-por-pagar" element={<CuentasPorPagar />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
