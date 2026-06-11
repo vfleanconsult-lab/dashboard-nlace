@@ -54,7 +54,7 @@ const CATALOG_GASTOS = [
     clasificacion_gasto: 'Otros', tipo_cuenta: 'Gasto_Otros',
     cuenta_cble: '4301-05', descripcion_cta: 'OTROS GASTOS VENTAS',
     empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a',
-    keywords: ['PENTA HIPOTECARIO', 'MERPAGO*MELIMAS'],
+    keywords: ['PENTA HIPOTECARIO', 'MERPAGO*MELIMAS', 'DUEMINT-WB'],
   },
   {
     clasificacion_gasto: 'Bencina', tipo_cuenta: 'Gasto_Benc',
