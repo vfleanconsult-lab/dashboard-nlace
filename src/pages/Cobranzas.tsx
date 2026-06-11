@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Clock, AlertTriangle, DollarSign, CheckCircle2 } from 'lucide-react'
 import * as D from '../lib/data'
 import { useData } from '../lib/useData'
 import { useFilter } from '../lib/useFilter'
 import { getAllMonths } from '../lib/filter'
 import { useFilterContext } from '../lib/FilterContext'
+import { supabase, EMPRESA_RUT } from '../lib/supabase'
 import PageHeader from '../components/PageHeader'
 import KpiCard from '../components/KpiCard'
 import SectionLabel from '../components/SectionLabel'
@@ -53,7 +54,30 @@ export default function Cobranzas() {
   const allMonths = getAllMonths(allRows)
   const { rows, label } = useFilter(allRows)
 
+  // folio lookup: key = `${fecha_vencimiento}|${Math.round(monto)}|${cliente}` → folio
+  const [folioMap, setFolioMap] = useState<Record<string, string>>({})
+
   useEffect(() => { initialize(years) }, [years])
+
+  useEffect(() => {
+    async function loadFolios() {
+      const { data: emp } = await supabase.from('empresas').select('id').eq('rut', EMPRESA_RUT).single()
+      if (!emp) return
+      const { data } = await supabase
+        .from('ventas')
+        .select('folio,fecha_vencimiento,monto_bruto,cliente')
+        .eq('empresa_id', emp.id)
+        .is('fecha_pago', null)
+      if (!data) return
+      const map: Record<string, string> = {}
+      data.forEach((r: { folio: string | null; fecha_vencimiento: string | null; monto_bruto: number | null; cliente: string | null }) => {
+        const key = `${r.fecha_vencimiento}|${Math.round(Number(r.monto_bruto))}|${r.cliente}`
+        map[key] = r.folio || '—'
+      })
+      setFolioMap(map)
+    }
+    loadFolios()
+  }, [])
 
   if (loading) return <LoadingState />
   if (error)   return <ErrorState error={errorDetail} />
@@ -165,7 +189,10 @@ export default function Cobranzas() {
               columns={[
                 {
                   header: 'Folio',
-                  accessor: f => <span className="font-mono text-[12px] text-nl-400">{f.folio}</span>,
+                  accessor: f => {
+                    const key = `${f.fechaVencimiento}|${Math.round(f.monto)}|${f.cliente}`
+                    return <span className="font-mono text-[12px] text-nl-400">{folioMap[key] || '—'}</span>
+                  },
                 },
                 {
                   header: 'Cliente',
