@@ -72,6 +72,9 @@ function extractRutFromDesc(desc: string): string {
   // Formato 2: RUT con puntos y guión: "77.719.165-9 Transf..."
   const m2 = desc.match(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK])\s+Transf\.?(\s|$)/i)
   if (m2) return m2[1]
+  // Formato 3: dígitos + dígito verificador K sin guión: "076389181K Transf..."
+  const m3 = desc.match(/^(\d{7,11}[Kk])\s+Transf\.?(\s|$)/i)
+  if (m3) return m3[1]
   return ''
 }
 
