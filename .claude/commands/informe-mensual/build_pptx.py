@@ -54,6 +54,22 @@ def set_bg(slide, color: RGBColor = BG):
     fill.fore_color.rgb = color
 
 
+def strip_all_shadows(slide):
+    """Elimina sombras de todos los elementos del slide."""
+    for shape in slide.shapes:
+        try:
+            sp_pr = shape.element.find(qn('p:spPr'))
+            if sp_pr is None:
+                sp_pr = getattr(shape.element, 'spPr', None)
+            if sp_pr is None:
+                continue
+            for eff in list(sp_pr.findall(qn('a:effectLst'))):
+                sp_pr.remove(eff)
+            etree.SubElement(sp_pr, qn('a:effectLst'))
+        except Exception:
+            pass
+
+
 def add_logo(slide, prs):
     if LOGO_PATH.exists():
         slide.shapes.add_picture(str(LOGO_PATH), LOGO_L, LOGO_T, LOGO_W, LOGO_H)
@@ -259,6 +275,7 @@ def slide_portada(prs, data):
     # Línea decorativa
     add_divider(slide, y=4.45)
     add_footer(slide, 1)
+    strip_all_shadows(slide)
 
 
 def slide_resumen_ejecutivo(prs, data):
@@ -310,6 +327,8 @@ def slide_resumen_ejecutivo(prs, data):
             run.font.name = FONT_BODY
             run.font.size = Pt(10)
             run.font.color.rgb = TEXT
+
+    strip_all_shadows(slide)
 
 
 def slide_ingresos_margen(prs, data):
@@ -378,6 +397,8 @@ def slide_ingresos_margen(prs, data):
         chart.plot_area.format.fill.background()
     except Exception:
         pass
+
+    strip_all_shadows(slide)
 
 
 def slide_gastos(prs, data):
@@ -453,6 +474,8 @@ def slide_gastos(prs, data):
                         run.font.color.rgb = GREY
                 else:
                     run.font.color.rgb = TEXT
+
+    strip_all_shadows(slide)
 
 
 def slide_cobranza(prs, data):
@@ -539,6 +562,8 @@ def slide_cobranza(prs, data):
                 drn.font.name = FONT_BODY
                 drn.font.size = Pt(8.5)
                 drn.font.color.rgb = RED if dias > 30 else GREY
+
+    strip_all_shadows(slide)
 
 
 def slide_resultado_neto(prs, data):
@@ -650,6 +675,8 @@ def slide_resultado_neto(prs, data):
                       lx, Inches(2.0),
                       width=Inches(1.5),
                       delta_color=delta_color(val, val_ant))
+
+    strip_all_shadows(slide)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
