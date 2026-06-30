@@ -35,7 +35,7 @@ export default function Ingresos() {
   // ── CAMBIO 1: Ranking histórico de ventas por cliente ──────────────────────
   const rankingData = useMemo(() => {
     const map: Record<string, { facturas: number; total: number }> = {}
-    rows.filter(D.isVenta).forEach(r => {
+    rows.filter(r => D.isVenta(r) && !D.isAnticipo(r)).forEach(r => {
       const c = D.getCliente(r) || 'Sin nombre'
       if (!map[c]) map[c] = { facturas: 0, total: 0 }
       map[c].facturas++
@@ -65,7 +65,7 @@ export default function Ingresos() {
   const ventasDelMes = useMemo(() => {
     if (!effectiveMonth) return []
     return allRows
-      .filter(r => D.isVenta(r) && D.getMonth(r) === effectiveMonth)
+      .filter(r => D.isVenta(r) && !D.isAnticipo(r) && D.getMonth(r) === effectiveMonth)
       .map(r => ({
         cliente: D.getCliente(r) || 'Sin nombre',
         monto: D.getMonto(r),

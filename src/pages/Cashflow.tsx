@@ -108,7 +108,7 @@ function buildCFMap(allRows: D.Row[]): Map<string, MonthCF> {
     const sumPag     = (fn: (r: D.Row) => boolean) =>
       sum(r => D.getEstado(r) === 'Pagada' && fn(r))
     const sumIngreso = (fn: (r: D.Row) => boolean) =>
-      sum(r => (D.getEstado(r) === 'Pagada' || D.getEstado(r) === 'Pagada_parcial') && fn(r))
+      sum(r => (D.getEstado(r) === 'Pagada' || D.getEstado(r) === 'Pagada_parcial' || D.getEstado(r) === 'Anticipo') && fn(r))
 
     const saldoInicial    = ym === '2026-01' ? SALDO_INICIAL_JAN_2026 : prevFinal
     const ventas          = sumIngreso(r => D.getCuenta(r) === '5101-01')
