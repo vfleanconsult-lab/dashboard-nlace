@@ -147,6 +147,7 @@ export function getMonth(row: Row): string | null {
 export const isVenta       = (row: Row) => getTipo(row) === 'Ingreso' && getCuenta(row) === '5101-01'
 export const isOtroIngreso = (row: Row) => getTipo(row) === 'Ingreso' && getCuenta(row) !== '5101-01'
 export const isCosto       = (row: Row) => getTipo(row) === 'Costo'
+export const isAnticipo    = (row: Row) => getEstado(row) === 'Anticipo'
 export const isPagado      = (row: Row) => getEstado(row) === 'Emitida' || getEstado(row) === 'Pagada' || getEstado(row) === 'Pagada_parcial'
 
 // Tipo='Remun' en la fuente de datos → separado de 'Gasto', no necesita exclusión manual
@@ -264,7 +265,7 @@ export function parseDateCL(str: string): Date | null {
 
 export function calcDSO(rows: Row[]): number | null {
   // Solo facturas pagadas: requiere Fecha_Pago y Fecha_emision
-  const pagadas = rows.filter(r => isVenta(r) && getFechaEmision(r) && getFechaPago(r))
+  const pagadas = rows.filter(r => isVenta(r) && !isAnticipo(r) && getFechaEmision(r) && getFechaPago(r))
   if (pagadas.length === 0) return null
   let total = 0, count = 0
   pagadas.forEach(r => {
@@ -282,7 +283,7 @@ export function calcDSOByCliente(rows: Row[]): DSOCliente[] {
   const map: Record<string, Entry> = {}
 
   rows
-    .filter(r => isVenta(r))
+    .filter(r => isVenta(r) && !isAnticipo(r))
     .forEach(r => {
       const c     = getCliente(r) || getDesc(r) || getCuenta(r)
       if (!c) return
@@ -354,7 +355,7 @@ export function calcFacturasImpagas(rows: Row[], today?: Date): FacturaImpaga[] 
   const hoyMs = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).getTime()
 
   return rows
-    .filter(r => isVenta(r) && !getFechaPago(r))
+    .filter(r => isVenta(r) && !isAnticipo(r) && !getFechaPago(r))
     .map(r => {
       const vencStr = getFechaVencimiento(r)
       const venc = vencStr ? parseDateCL(vencStr) : null
@@ -380,7 +381,7 @@ export function calcTopPeoresPagadores(rows: Row[], limit = 10): TopPagador[] {
   type Entry = { totalDias: number; count: number; totalSobreVenc: number; countVenc: number }
   const map: Record<string, Entry> = {}
 
-  rows.filter(r => isVenta(r) && getFechaPago(r) && getFechaEmision(r)).forEach(r => {
+  rows.filter(r => isVenta(r) && !isAnticipo(r) && getFechaPago(r) && getFechaEmision(r)).forEach(r => {
     const c = getCliente(r) || getDesc(r) || 'Sin nombre'
     const emi = parseDateCL(getFechaEmision(r))
     const pago = parseDateCL(getFechaPago(r))

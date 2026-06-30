@@ -12,7 +12,7 @@ const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : su
 
 const EMPRESA_ID = '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a'
 
-const ESTADOS = ['Emitida', 'Pagada', 'Pagada_parcial', 'No pagada', 'Anulada']
+const ESTADOS = ['Emitida', 'Pagada', 'Pagada_parcial', 'No pagada', 'Anulada', 'Anticipo']
 
 type Tabla = 'ventas' | 'costos' | 'gastos' | 'remuneraciones'
 type Step = 1 | 2 | 3 | 'done'
@@ -90,8 +90,8 @@ const COMMON_FIELDS: FieldDef[] = [
 
 const FIELDS_BY_TABLE: Record<Tabla, FieldDef[]> = {
   ventas: [
-    { key: 'folio',       label: 'Folio',      type: 'text',   required: true,  placeholder: 'Ej. 1234' },
-    { key: 'rut_cliente', label: 'RUT cliente',type: 'text',   required: true,  placeholder: 'Ej. 76.123.456-7' },
+    { key: 'folio',       label: 'Folio',      type: 'text',   required: true,  placeholder: 'Ej. 1234', hint: 'Dejar vacío si es anticipo sin factura' },
+    { key: 'rut_cliente', label: 'RUT cliente',type: 'text',   required: true,  placeholder: 'Ej. 76.123.456-7 · Usar 88.888.888-8 si aún no tiene RUT' },
     { key: 'cliente',     label: 'Cliente',    type: 'text',   required: true,  placeholder: 'Nombre empresa' },
     ...COMMON_FIELDS,
   ],
@@ -260,9 +260,11 @@ export default function IngresoManualPartidas() {
 
   const validate = (): string | null => {
     if (!tabla || !cuenta) return 'Faltan datos de contexto'
+    const isAnticipo = form.estado === 'Anticipo'
     const fields = FIELDS_BY_TABLE[tabla]
     for (const f of fields) {
-      if (f.required && !form[f.key]) return `Campo requerido: ${f.label}`
+      const skipForAnticipo = isAnticipo && f.key === 'folio'
+      if (f.required && !skipForAnticipo && !form[f.key]) return `Campo requerido: ${f.label}`
     }
     if (!form.monto_bruto || isNaN(parseFloat(form.monto_bruto))) return 'Monto bruto inválido'
     return null
