@@ -321,3 +321,29 @@ Aclaración importante sobre dónde va cada cosa, para sesiones futuras:
 ---
 
 *Sesión del 08/06/2026 — Dashboard NLACE*
+
+---
+
+## Sesión 01/08/2026 — Cuadre de ingresos en la reconciliación
+
+### 15. Cuadrar el flujo de caja contra los saldos del banco
+
+La reconciliación mensual (`/reconciliar`) por defecto solo cuadra egresos. Cuando el flujo de caja no coincide con el saldo del banco, el problema está en los **ingresos** (abonos no registrados como ventas cobradas).
+
+**Verificación definitiva:** la cartola BCI trae su propio resumen de saldos (filas 8-10: `SALDO INICIAL | ... | OTROS ABONOS | ... | OTROS CARGOS | ... | SALDO FINAL`). El flujo cuadra cuando:
+
+```
+Σ ventas(fecha_pago) − Σ egresos(fecha_pago)  ==  saldo_final − saldo_inicial
+```
+
+**Patrones aplicados (todos documentados en detalle en `.claude/commands/reconciliar.md` → Lecciones agosto 2026):**
+
+- **Pago parcial → split en dos líneas**: modificar la factura original a `Pagada_parcial` con el monto cobrado + `fecha_pago`; crear una línea nueva `Emitida` con el saldo pendiente. Preservar `mes_economico` (devengado) — solo cambian `estado` y `fecha_pago`.
+- **Reverso no-WebPay**: un abono que calza exacto con un cargo previo del mismo proveedor (ej. Khipu) es un reverso → eliminar el cargo, no registrar el abono como ingreso.
+- **Cruzar ingresos por RUT**, no solo por monto: el pagador puede ser un representante con RUT distinto (una persona pagó por una sociedad).
+
+Estas reglas son específicas de la reconciliación y viven en el skill para cargarse en cada corrida; aquí queda solo el índice de proceso.
+
+---
+
+*Sesión del 01/08/2026 — Dashboard NLACE*
