@@ -38,6 +38,8 @@ const CATALOG_SOFTWARE = [
   { proveedor: 'SUPABASE',     keywords: ['SUPABASE'],                                      cuenta_cble: '4101-09', descripcion_cta: 'OTROS GASTOS DE EXPLOTACION', clasificacion_cto: 'Costo_Gto_Explot', clasificacion_gasto: null, tipo_cuenta: null, empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a', tabla: 'costos' },
   { proveedor: 'MAGNIFIC AI',  keywords: ['MGF* MAGNIFIC', 'MAGNIFIC PRE', 'MAGNIFIC'],     cuenta_cble: '4101-09', descripcion_cta: 'OTROS GASTOS DE EXPLOTACION', clasificacion_cto: 'Costo_Gto_Explot', clasificacion_gasto: null, tipo_cuenta: null, empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a', tabla: 'costos' },
   { proveedor: 'SLACK',        keywords: ['SLACK'],                                         cuenta_cble: '4101-09', descripcion_cta: 'OTROS GASTOS DE EXPLOTACION', clasificacion_cto: 'Costo_Gto_Explot', clasificacion_gasto: null, tipo_cuenta: null, empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a', tabla: 'costos' },
+  { proveedor: 'MANYCHAT',     keywords: ['MANYCHAT'],                                      cuenta_cble: '4101-09', descripcion_cta: 'OTROS GASTOS DE EXPLOTACION', clasificacion_cto: 'Costo_Gto_Explot', clasificacion_gasto: null, tipo_cuenta: null, empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a', tabla: 'costos' },
+  { proveedor: 'MICROSOFT',    keywords: ['MICROSOFT', 'DL*MICROSOFT'],                     cuenta_cble: '4101-09', descripcion_cta: 'OTROS GASTOS DE EXPLOTACION', clasificacion_cto: 'Costo_Gto_Explot', clasificacion_gasto: null, tipo_cuenta: null, empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a', tabla: 'costos' },
 ] as const
 
 // ── CATÁLOGO EQUIPO ───────────────────────────────────────────────────────────
