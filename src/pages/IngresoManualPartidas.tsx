@@ -12,7 +12,7 @@ const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : su
 
 const EMPRESA_ID = '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a'
 
-const ESTADOS = ['Emitida', 'Pagada', 'Pagada_parcial', 'No pagada', 'Anulada', 'Anticipo']
+const ESTADOS = ['Emitida', 'Pagada', 'Pagada_parcial', 'No Pagada', 'Anulada', 'Anticipo']
 
 type Tabla = 'ventas' | 'costos' | 'gastos' | 'remuneraciones'
 type Step = 1 | 2 | 3 | 'done'
