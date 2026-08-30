@@ -121,3 +121,14 @@ Tokens de `@nlace/ui-kit` vía `src/index.css`.
 2. Añadir ruta en `src/App.tsx` (dentro del bloque `<ProtectedRoute>`)
 3. Añadir entrada en `src/components/Sidebar.tsx` → `NAV_ITEMS`
 4. Usar `useData` + `useFilter` para datos y filtrado
+
+## Skill: informe-ceo (informe ejecutivo mensual .pptx)
+
+Genera el informe ejecutivo mensual en PowerPoint para la reunión CFO→CEO. **No es parte del dashboard web** — se ejecuta desde Claude Code/Cowork, no desde un botón en la UI.
+
+- Definición: `.claude/skills/informe-ceo/SKILL.md` (invocar pidiendo "informe CEO" / "informe mensual").
+- Scripts: `.claude/skills/informe-ceo/scripts/fetch-datos.ts` (extrae y agrega datos de Supabase reutilizando `src/lib/data.ts`) y `.claude/skills/informe-ceo/scripts/generar-pptx.ts` (arma el .pptx con `pptxgenjs`, 6 slides, identidad NLACE).
+- Comandos: `npm run informe:datos -- [--mes YYYY-MM] --out output/datos.json` y `npm run informe:pptx -- --datos ... --narrativa ... --out ...`.
+- La narrativa ejecutiva la escribe el propio agente (no hay llamada a la API de Claude ni API key involucrada).
+- `output/` (JSON intermedios y .pptx generados) está en `.gitignore` — nunca se versiona.
+- `src/lib/supabase.ts` tiene un fallback a `process.env` además de `import.meta.env` para poder correr bajo Node/tsx desde estos scripts sin duplicar la lógica de `data.ts` — ver `lecciones-aprendidas.md` sesión 30/08/2026.

@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "informe:datos": "tsx .claude/skills/informe-ceo/scripts/fetch-datos.ts",
+    "informe:pptx": "tsx .claude/skills/informe-ceo/scripts/generar-pptx.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.8",
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^26.4.0",
     "@types/papaparse": "^5.3.14",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -32,7 +35,9 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
+    "pptxgenjs": "^4.0.1",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^6.0.0"

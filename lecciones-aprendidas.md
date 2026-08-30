@@ -347,3 +347,27 @@ Estas reglas son específicas de la reconciliación y viven en el skill para car
 ---
 
 *Sesión del 01/08/2026 — Dashboard NLACE*
+
+---
+
+## Sesión 30/08/2026 — Skill informe-ceo (informe .pptx mensual)
+
+### 16. Reutilizar `src/lib/data.ts` desde scripts Node (fuera del bundle web)
+
+`src/lib/data.ts` importa `./supabase`, y `supabase.ts` leía `import.meta.env.*` directamente — bajo Node/tsx `import.meta.env` es `undefined` y el módulo crashea al evaluarse. Se parcheó con un fallback a `globalThis.process?.env` (con cast, sin requerir `@types/node` en el build web) para que el mismo archivo sirva tanto al bundle de Vite como a scripts Node. Patrón reutilizable: cualquier módulo de `src/lib/` que se quiera compartir con scripts de skills debe evitar acceder a `import.meta.env` sin ese guard.
+
+### 17. pptxgenjs + SVG: preferir PNG rasterizado
+
+pptxgenjs acepta rutas `.svg` en `addImage`, pero en este sandbox no había herramienta de rasterización disponible (`rsvg-convert`, `inkscape`, `magick` ausentes; `soffice --headless --convert-to png` falló incluso con archivos triviales — limitación del entorno, no del SVG). Se instaló `sharp` de forma temporal (fuera de `package.json`, solo en `/tmp`) para generar `assets/nlace-black.png` una vez y se descartó la dependencia. El generador (`generar-pptx.ts`) prefiere el PNG si existe y cae a SVG si no — dejar ambos versionados en `assets/` evita depender de herramientas de conversión en cada ejecución.
+
+### 18. Fuentes de marca no se embeben en .pptx
+
+Space Grotesk e Inter no viajan dentro del archivo .pptx — si la máquina donde se abre no las tiene instaladas, PowerPoint sustituye por una fuente del sistema. Es una limitación conocida y aceptada (no bloqueante); se documentó en el `SKILL.md` para que el CFO lo tenga presente al presentar.
+
+### 19. LibreOffice headless no disponible para QA visual en este sandbox
+
+`soffice --headless --convert-to pdf` falla con "source file could not be loaded" incluso en archivos triviales (`.txt`) — no es un problema del .pptx generado. La verificación de un .pptx generado en este tipo de entorno se hace de forma estructural: `unzip -l` para confirmar las 6 slides y los medios embebidos, `python3 -c "import xml.dom.minidom as m; m.parse(...)"` para XML bien formado de cada slide, y `grep` sobre `<a:t>` para confirmar que el texto y los colores de marca (`srgbClr val="..."`) quedaron inyectados correctamente. La inspección visual final queda para el usuario al abrir el archivo.
+
+---
+
+*Sesión del 30/08/2026 — Dashboard NLACE*
