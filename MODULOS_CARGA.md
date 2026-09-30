@@ -60,7 +60,7 @@ Al añadir un módulo, agregar color en `colorMap` e `iconColorMap` de `Actualiz
 | 1 | Honorarios | Gasto_Adm | 4201-02 | OLGA, RAMIREZ, VICTOR FIGUEROA, RUTs |
 | 2 | ERP | Gasto_ERP | 4201-37 | TOKU, NUBOX PAY, HAULMER |
 | 3 | Marketing | Gasto_Mkg | 4301-03 | FACEBK, FACEBOOK, META |
-| 4 | Cobranza | Gasto_Cobranza | 4301-02 | NP PAYU, PAYU |
+| 4 | Cobranza | Gasto_Cobranza | 4301-02 | NP PAYU, PAYU, ENLAZA (boletín comercial) |
 | 5 | Abogados | Gasto_Legl | 4201-12 | RUT 76.229.620-9, FLORES ACEVEDO, NOTARIA |
 | 6 | Banco | Gasto_Adm | 4201-10 | COM.MANTENCION, LCA N°, INTERESES LINEA, SOBREGIRO |
 | 7 | Otros | Gasto_Otros | 4301-05 | PENTA HIPOTECARIO, MERPAGO*MELIMAS |
