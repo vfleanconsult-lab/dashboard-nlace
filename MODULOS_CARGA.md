@@ -125,7 +125,7 @@ Lee cartola Santander (.xlsx), filtra **abonos** (monto positivo). Operación: U
 
 ### Extracción de RUT del pagador
 
-Descripción del banco: `{RUT} Transf.? {nombre}`. Dos formatos:
+Descripción del banco: `{RUT} Transf.? {nombre}` o `{RUT} Pago {nombre}` (ej: `00650205189 Pago Corporacion Red`). Dos formatos:
 - Dígitos con leading zero: patrón `^\d{8,12}\s+Transf`
 - Con puntos y guión: patrón `^\d{1,2}\.\d{3}\.\d{3}-[\dkK]\s+Transf`
 
