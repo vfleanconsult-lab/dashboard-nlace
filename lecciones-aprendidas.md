@@ -347,3 +347,27 @@ Estas reglas son específicas de la reconciliación y viven en el skill para car
 ---
 
 *Sesión del 01/08/2026 — Dashboard NLACE*
+
+---
+
+## Sesión 05/10/2026 — Deploy de producción que no llegaba
+
+### 16. Un deploy fallido por 2FA no deja registro; Redeploy no siempre es producción
+
+**Síntoma:** PR #79 mergeado a `main`, pero el Cashflow de septiembre seguía mostrando $215.284 en vez de $130.333. El build local compilaba sin errores.
+
+**Causa:** el equipo `nlace` en Vercel exigía 2FA y la cuenta que disparó el deploy no lo tenía. El estado de GitHub quedó en `failure` ("Deployment failed", enlace a la doc de 2FA), pero **Vercel no creó ningún deployment** para ese commit, así que no había nada que "Redeployar". Producción siguió sirviendo el build anterior sin avisar.
+
+**Trampas del camino:**
+
+- **Redeploy desde un deploy de rama genera un preview** (`target: null`), no producción. Parece que "se relanzó" pero `lucas.nlace.com` no cambia.
+- El check verde del PR corresponde al **preview de la rama**, no al deploy de `main` tras el merge.
+- La API/MCP de Vercel también devuelve `403 mfa_enforced` si la cuenta conectada no tiene 2FA.
+
+**Cómo diagnosticar (en orden):**
+
+1. Estado del commit de merge: `gh api repos/<org>/<repo>/commits/<sha>/status`.
+2. Listar deployments con `target=production` y filtrar por `sha`; si no hay ninguno para el merge, el deploy nunca se creó.
+3. Comparar el bundle publicado (`index-*.js` en el HTML de producción) con el del build local, buscando el código del fix.
+
+**Arreglo:** activar 2FA y forzar un deploy de `main` (Vercel → Deployments → Create Deployment sobre `main`, o commit vacío a `main`). Verificar siempre el bundle de producción y el dato en pantalla, no el estado del PR.
