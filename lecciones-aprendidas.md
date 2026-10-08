@@ -395,3 +395,49 @@ Space Grotesk e Inter no viajan dentro del archivo .pptx — si la máquina dond
 3. Comparar el bundle publicado (`index-*.js` en el HTML de producción) con el del build local, buscando el código del fix.
 
 **Arreglo:** activar 2FA y forzar un deploy de `main` (Vercel → Deployments → Create Deployment sobre `main`, o commit vacío a `main`). Verificar siempre el bundle de producción y el dato en pantalla, no el estado del PR.
+
+---
+
+## Sesión 08/10/2026 — Skills en el repo y limpieza de ramas
+
+### 21. Versionar skills de `.claude/commands/` en un repo público
+
+**Contexto:** `.claude/commands/` estaba entero en `.gitignore` porque los skills llevaban credenciales. Se pidió dejar `reconciliar` y `cobranza` disponibles en GitHub.
+
+**Qué se hizo (PR `chore/skills-reconciliar-cobranza`, commit `e131a24`):**
+
+- `.gitignore` pasó de ignorar la carpeta a `.claude/commands/*` + excepciones explícitas `!.claude/commands/reconciliar.md` y `!.claude/commands/cobranza.md`. Cualquier otro skill (p. ej. `informe`, `informe-mensual/`) sigue ignorado hasta que se agregue su excepción.
+- `cobranza.md` tenía la **anon key de Supabase escrita en el archivo**; el repo es público, así que se reemplazó por "leer de `src/lib/supabase.ts`". Verificado en `origin` (0 coincidencias de `eyJ`).
+- Siguen en el repo público la URL del proyecto Supabase y el `EMPRESA_ID` (no son secretos de acceso). La `service_role` nunca debe escribirse en un skill: se lee de `.env.local` (`VITE_SUPABASE_SERVICE_KEY`).
+
+**Regla:** antes de quitar un skill del `.gitignore`, `grep -nEi 'eyJ|service_role|apikey|secret|token'` y mover cualquier valor a `.env.local` o `src/lib/supabase.ts`.
+
+### 22. Commitear con árbol sucio: la rama equivocada
+
+`git checkout -b <rama> origin/main` **aborta** si hay archivos modificados que difieren de `main`; si el `commit` va encadenado con `&&` a ciegas, el commit cae en la rama actual. Para publicar un cambio puntual sin tocar el árbol de trabajo:
+
+```bash
+git worktree add -b <rama> /tmp/wt origin/main
+git -C /tmp/wt cherry-pick <sha>
+git -C /tmp/wt push -u origin <rama>
+git reset --soft HEAD~1          # saca el commit de la rama original
+git worktree remove /tmp/wt
+```
+
+### 23. Registro de la limpieza de ramas (08/10/2026)
+
+Antes de borrar, se comprobó con `git rev-list --count origin/main..<rama>` (0 = integrada) y `git branch -r --merged origin/main`. `docs/documentacion-calculos` se verificó explícitamente: ya estaba en `main`.
+
+**Borradas por estar integradas en `main`:** `chore/skills-reconciliar-cobranza`, `claude/modest-dirac-kwys04`, `docs/documentacion-calculos`, `docs/leccion-deploy-2fa`, `fix/cashflow-gasto-cobranza` (remotas) y las dos primeras locales equivalentes.
+
+**Borradas por obsoletas (tenían commits sin integrar, decisión de Víctor).** Para recuperarlas: `git push origin <sha>:refs/heads/<nombre>` mientras GitHub conserve los objetos.
+
+| Rama | Último commit | Contenido |
+|---|---|---|
+| `claude/advance-payment-no-rut-ki2otx` | `1973e48` | feat: estado Anticipo para pagos anticipados sin RUT |
+| `claude/quirky-lamport-fj2hwk` | `fdac325` | Add NLACE UI-Kit skill como project command |
+| `fix/estado-facturas-pago-rut` | `f6f4c09` | feat: clasificar ENLAZA como Gastos Cobranza (2 commits) |
+
+**Resultado:** en GitHub solo queda `main`. Pendiente local: cuando se resuelvan los cambios sin commitear, pasar a `main`, `git pull` y borrar `fix/cashflow-gasto-cobranza`.
+
+*Sesión del 08/10/2026 — Dashboard NLACE*
