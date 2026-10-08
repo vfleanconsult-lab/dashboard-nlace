@@ -12,6 +12,7 @@
     "informe:pptx": "tsx .claude/skills/informe-ceo/scripts/generar-pptx.ts"
   },
   "dependencies": {
+    "@clerk/backend": "^3.23.1",
     "@clerk/clerk-react": "^5.61.8",
     "@nlace/ui-kit": "latest",
     "@supabase/supabase-js": "^2.105.3",

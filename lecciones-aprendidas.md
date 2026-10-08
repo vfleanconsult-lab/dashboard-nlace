@@ -441,3 +441,9 @@ Antes de borrar, se comprobó con `git rev-list --count origin/main..<rama>` (0 
 **Resultado:** en GitHub solo queda `main`. Pendiente local: cuando se resuelvan los cambios sin commitear, pasar a `main`, `git pull` y borrar `fix/cashflow-gasto-cobranza`.
 
 *Sesión del 08/10/2026 — Dashboard NLACE*
+
+## 2026-10-08 — service_role publicada en el bundle
+
+- **Causa:** la clave estaba en `VITE_SUPABASE_SERVICE_KEY`; todo `VITE_*` referenciado en el código se incrusta en el JS público. Cinco páginas de carga creaban un cliente con ella en el navegador.
+- **Regla:** ningún secreto lleva prefijo `VITE_`. Las escrituras privilegiadas van por función serverless (`api/db-write.ts`) tras validar la sesión.
+- **Rotar siempre:** quitar la clave del código no basta; estuvo pública, así que debe rotarse.

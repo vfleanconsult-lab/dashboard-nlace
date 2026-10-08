@@ -1,11 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { Upload, CheckCircle, AlertCircle, FileText, RotateCcw, ChevronDown, ChevronUp, ShieldAlert, Info } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabaseAdmin'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://orjufhwfepojfiqejhfc.supabase.co'
-const SERVICE_KEY  = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
-const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : supabase
 
 const EMPRESA_ID     = '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a'
 const CUENTA_CBLE    = '5101-01'

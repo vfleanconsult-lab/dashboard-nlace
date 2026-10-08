@@ -34,15 +34,16 @@ fecha_vencimiento (DATE), cliente, creado_en
 ## RLS y variables de entorno
 
 - SELECT: `anon` y `authenticated` pueden leer
-- INSERT/UPDATE: requiere `service_role` vía `VITE_SUPABASE_SERVICE_KEY`
+- INSERT/UPDATE: requiere `service_role`, usada **solo en servidor** por `api/db-write.ts` (el navegador nunca la tiene)
 
 | Variable | Uso |
 |----------|-----|
 | `VITE_SUPABASE_URL` | URL del proyecto (tiene fallback hardcodeado) |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura (tiene fallback hardcodeado) |
-| `VITE_SUPABASE_SERVICE_KEY` | Clave service_role legacy `eyJ...` para INSERTs/UPDATEs |
+| `SUPABASE_SERVICE_KEY` | service_role, **solo servidor** (env de Vercel, sin prefijo `VITE_`) |
+| `CLERK_SECRET_KEY` | Secret Key de Clerk, solo servidor: `api/db-write.ts` valida la sesión y el dominio `@nlace.com` |
 
-> `VITE_SUPABASE_SERVICE_KEY` debe ser la key **legacy** en formato `eyJ...`. La nueva `sb_secret_...` está bloqueada en browser.
+> **Nunca** poner `service_role` en una variable `VITE_*`: Vite la publica en el bundle. Escritura desde el front = `src/lib/supabaseAdmin.ts` → `POST /api/db-write` (tablas ventas/costos/gastos/remuneraciones; update solo `ventas.estado/fecha_pago/monto_bruto`). Los skills locales (cobranza/reconciliar) leen la clave de `.env.local`.
 
 ## Tabla de cobranza
 
