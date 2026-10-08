@@ -20,6 +20,9 @@ dist
 dist-ssr
 *.local
 
+# Salidas de la skill informe-ceo (JSON intermedios y .pptx generados)
+output/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
