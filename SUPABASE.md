@@ -44,6 +44,23 @@ fecha_vencimiento (DATE), cliente, creado_en
 
 > `VITE_SUPABASE_SERVICE_KEY` debe ser la key **legacy** en formato `eyJ...`. La nueva `sb_secret_...` está bloqueada en browser.
 
+## Tabla de cobranza
+
+| Tabla | Contenido |
+|-------|-----------|
+| `cobranza_historial` | Registro de contactos del agente de cobranza — usado para calibrar nivel de escalada |
+
+**Schema `cobranza_historial`:**
+```
+empresa_id, rut_cliente, cliente, fecha_contacto (DATE), nivel_escalada (1/2/3),
+folios (TEXT[]), monto_total (NUMERIC), gmail_draft_id (TEXT), creado_en
+```
+- SELECT: `anon` y `authenticated` pueden leer
+- INSERT: requiere `service_role` vía `VITE_SUPABASE_SERVICE_KEY`
+- Skill que la usa: `.claude/commands/cobranza.md`
+
+---
+
 ## Mapper y columnas clave
 
 `supabaseToRow()` en `data.ts` convierte snake_case de Supabase a nombres del CSV original.
@@ -51,10 +68,20 @@ fecha_vencimiento (DATE), cliente, creado_en
 **Columnas clave en el modelo JS:**
 `Tipo` (Ingreso/Costo/Gasto/Remun) · `Cuenta_Cble` · `Descripcion Cta.` · `Clasificacion_Gasto` · `Clasificacion_Cto` · `Tipo_Cuenta` · `Estado` · `Mes_economico` (YYYY-MM) · `Ano_eco` (YYYY) · `monto_bruto` · `Fecha_emision` · `Fecha_Pago`
 
-**Valores de `Estado`:**
-- `"Emitida"` — factura emitida, aún no pagada
-- `"Pagada"` — pago total recibido
-- `"Pagada_parcial"` — pago parcial recibido
+**Valores de `Estado`** (lista completa en `ESTADOS` de `IngresoManualPartidas.tsx`):
+
+| Estado | Significado | Devengado (`isPagado()`) | Caja (Cashflow) |
+|---|---|:---:|:---:|
+| `Emitida` | Factura emitida, pago aún no recibido | Sí | No |
+| `Pagada` | Pago total recibido | Sí | Sí |
+| `Pagada_parcial` | Pago parcial recibido | Sí | Sí |
+| `No Pagada` | Provisión/factura pendiente (no es lo mismo que `Emitida`) | No | No |
+| `Anulada` | Factura anulada (mapeada desde `ANULADO` del SII) — excluida de todo cálculo | No | No |
+| `Anticipo` | Anticipo de cliente, dinero recibido sin factura formal (sin `folio`) | No | Sí |
+
+`isPagado()` (`data.ts:151`) = `Emitida` ∨ `Pagada` ∨ `Pagada_parcial` — usado en vistas de devengado (Estado de Resultado).
+Cashflow (`Cashflow.tsx:111`) = `Pagada` ∨ `Pagada_parcial` ∨ `Anticipo` — base caja, solo estados con movimiento real de dinero.
+`ActualizarVentas.tsx` mapea automáticamente el CSV del SII: `EMITIDO → Emitida`, `PAGADO → Pagada`, `PAGADO PARCIAL → Pagada_parcial`, `ANULADO → Anulada`.
 
 ## Reglas de negocio en `data.ts` — no tocar
 
