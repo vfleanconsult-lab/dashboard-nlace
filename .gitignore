@@ -8,6 +8,9 @@
 !.claude/commands/reconciliar.md
 !.claude/commands/cobranza.md
 
+# Config local del servidor de desarrollo para Claude Code
+.claude/launch.json
+
 # Logs
 logs
 *.log
