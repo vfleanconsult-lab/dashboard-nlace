@@ -26,7 +26,7 @@ Al finalizar una sesión, actualizar el archivo correspondiente según el tipo d
 
 ## Despliegue
 
-- **Producción:** https://dashboard-nlace.vercel.app
+- **Producción:** https://lucas.nlace.com
 - **Repo:** https://github.com/vfleanconsult-lab/dashboard-nlace
 - Vercel despliega automáticamente al mergear a `main`.
 

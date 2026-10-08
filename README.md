@@ -2,7 +2,7 @@
 
 Dashboard financiero interno para análisis de resultados de gestión.
 
-**Producción:** https://dashboard-nlace.vercel.app
+**Producción:** https://lucas.nlace.com
 
 ---
 
