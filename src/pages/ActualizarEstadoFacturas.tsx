@@ -67,13 +67,14 @@ const normRut = (s: string) =>
 
 function extractRutFromDesc(desc: string): string {
   // Formato 1: dígitos normalizados por el banco: "0776774340 Transf..."
-  const m1 = desc.match(/^(\d{8,12})\s+Transf\.?(\s|$)/i)
+  // También "Pago ..." (ej: "00650205189 Pago Corporacion Red", "0763225909 PAGO PROVEEDOR ...")
+  const m1 = desc.match(/^(\d{8,12})\s+(?:Transf\.?|Pago)(\s|$)/i)
   if (m1) return m1[1]
   // Formato 2: RUT con puntos y guión: "77.719.165-9 Transf..."
   const m2 = desc.match(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK])\s+Transf\.?(\s|$)/i)
   if (m2) return m2[1]
   // Formato 3: dígitos + dígito verificador K sin guión: "076389181K Transf..."
-  const m3 = desc.match(/^(\d{7,11}[Kk])\s+Transf\.?(\s|$)/i)
+  const m3 = desc.match(/^(\d{7,11}[Kk])\s+(?:Transf\.?|Pago)(\s|$)/i)
   if (m3) return m3[1]
   return ''
 }

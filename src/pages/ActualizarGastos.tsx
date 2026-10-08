@@ -36,7 +36,7 @@ const CATALOG_GASTOS = [
     clasificacion_gasto: 'Cobranza', tipo_cuenta: 'Gasto_Cobranza',
     cuenta_cble: '4301-02', descripcion_cta: 'GASTOS COBRANZA',
     empresa_id: '02832e85-f5d9-43d6-a911-0bdf3e3e1a4a',
-    keywords: ['NP PAYU', 'PAYU'],
+    keywords: ['NP PAYU', 'PAYU', 'ENLAZA'],
   },
   {
     clasificacion_gasto: 'Abogados', tipo_cuenta: 'Gasto_Legl',
