@@ -26,7 +26,7 @@ Al añadir un módulo, agregar color en `colorMap` e `iconColorMap` de `Actualiz
 
 **Mes económico editable:** cada fila tiene `<input type="month">` para `mes_economico`. Por defecto = mes de `fecha_pago`. Al modificar se resalta y `ano_eco` se recalcula.
 
-**Cliente Supabase para escritura:** `supabaseAdmin` con `VITE_SUPABASE_SERVICE_KEY`. Si no está definida, cae al cliente `anon` (fallará por RLS).
+**Cliente Supabase para escritura:** `supabaseAdmin` (`src/lib/supabaseAdmin.ts`) llama a `/api/db-write`, que valida la sesión Clerk y escribe con `service_role` en el servidor. Sin sesión válida devuelve 401.
 
 **Detección de duplicados:** huella `fecha_pago|monto_bruto|descripcion_glosa`. Badge **YA EXISTE**, desmarcadas por defecto.
 

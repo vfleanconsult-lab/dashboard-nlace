@@ -1,12 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { Upload, CheckCircle, AlertCircle, FileSpreadsheet, RotateCcw, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { supabaseAdmin } from '../lib/supabaseAdmin'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://orjufhwfepojfiqejhfc.supabase.co'
-const SERVICE_KEY  = import.meta.env.VITE_SUPABASE_SERVICE_KEY || ''
-const supabaseAdmin = SERVICE_KEY ? createClient(SUPABASE_URL, SERVICE_KEY) : supabase
 
 // ── CATÁLOGO GASTOS (consolidado por Clasificacion_Gasto) ─────────────────────
 // Orden importa: categorías específicas antes que genéricas
