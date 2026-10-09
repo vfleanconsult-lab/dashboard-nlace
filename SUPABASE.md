@@ -39,7 +39,7 @@ fecha_vencimiento (DATE), cliente, creado_en
 | Variable | Uso |
 |----------|-----|
 | `VITE_SUPABASE_URL` | URL del proyecto (tiene fallback hardcodeado) |
-| `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura (tiene fallback hardcodeado) |
+| `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura: publishable `sb_publishable_…` (fallback hardcodeado; ya no la anon JWT legacy) |
 | `SUPABASE_SERVICE_KEY` | service_role, **solo servidor** (env de Vercel, sin prefijo `VITE_`) |
 | `CLERK_SECRET_KEY` | Secret Key de Clerk, solo servidor: `api/db-write.ts` valida la sesión y el dominio `@nlace.com` |
 
