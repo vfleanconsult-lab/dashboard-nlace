@@ -10,6 +10,7 @@ Guía de navegación para Claude Code. Lee este archivo primero, luego los archi
 | Lógica de negocio por página (Cashflow, Forecast, Gastos, Ingresos, parseDateCL) | `REGLAS_NEGOCIO.md` |
 | Módulos de carga (ActualizarCostos, Gastos, Ventas, EstadoFacturas, IngresoManual) | `MODULOS_CARGA.md` |
 | Historial de sesiones, lecciones aprendidas, patrones de trabajo | `lecciones-aprendidas.md` |
+| Incidente de la service_role publicada (oct 2026): causa, cambios, estado de claves, pendientes | `INCIDENTE_2026-10_SERVICE_ROLE.md` |
 
 ## Regla de documentación al cerrar sesión
 
