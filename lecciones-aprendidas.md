@@ -447,3 +447,12 @@ Antes de borrar, se comprobó con `git rev-list --count origin/main..<rama>` (0 
 - **Causa:** la clave estaba en `VITE_SUPABASE_SERVICE_KEY`; todo `VITE_*` referenciado en el código se incrusta en el JS público. Cinco páginas de carga creaban un cliente con ella en el navegador.
 - **Regla:** ningún secreto lleva prefijo `VITE_`. Las escrituras privilegiadas van por función serverless (`api/db-write.ts`) tras validar la sesión.
 - **Rotar siempre:** quitar la clave del código no basta; estuvo pública, así que debe rotarse.
+
+### Cierre del incidente (2026-10-09) — lo que costó más de lo esperado
+
+- **Desactivar las API keys no invalida un JWT filtrado.** La `service_role` legacy es un JWT firmado con el secreto JWT; tras desactivar las claves legacy seguía funcionando como `Authorization: Bearer` (se vio con una consulta de solo conteo sobre tablas que `anon` no lee: 10 y 62 filas). Solo dejó de servir al **revocar el secreto JWT legacy** (JWT Signing Keys → migrar → rotar → revocar). Verificar siempre con una prueba que distinga rol alto de `anon`, no con un 200 sobre una tabla pública.
+- **Orden de pasos:** borrar una variable de Vercel *antes* del merge cortó la escritura en producción (`main` aún la usaba). Primero merge, después borrar.
+- **Clerk por entorno:** `VITE_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` deben ser de la misma instancia en cada entorno; con `pk_test` en el sitio y `sk_live` en el servidor, la verificación falla con "Unable to find a signing key in JWKS". Las variables `VITE_*` no pueden ser Sensitive.
+- **Un redeploy no es un build nuevo del PR:** se redeployó `main` en vez de la rama; el hash del JS publicado revela si el build cambió.
+- **Retención de logs de Supabase: ~11 horas.** No se puede auditar abuso de semanas atrás. Si una clave se filtra, asumir compromiso total.
+- **Monitor por commit:** un monitor que mira el estado de un commit ya desplegado da falsos "listo" en redeploys del mismo SHA.

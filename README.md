@@ -87,7 +87,7 @@ Los datos se leen desde la vista `registros_contables` (UNION ALL de las tablas 
 |---|---|
 | `VITE_SUPABASE_URL` | URL del proyecto Supabase |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura |
-| `SUPABASE_SERVICE_KEY` | service_role, solo servidor (Vercel). Nunca con prefijo `VITE_` |
+| `SUPABASE_SERVICE_KEY` | secret key `sb_secret_…`, solo servidor (Vercel). Nunca con prefijo `VITE_` |
 | `CLERK_SECRET_KEY` | Solo servidor, para validar sesión en `api/db-write.ts` |
 
 ---
