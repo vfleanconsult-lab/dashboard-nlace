@@ -23,15 +23,23 @@ async function authorize(req: Req): Promise<string | null> {
   const header = req.headers.authorization
   const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : ''
   const secretKey = process.env.CLERK_SECRET_KEY
-  if (!token || !secretKey) return null
+  // Los motivos del rechazo van solo al log del servidor (nunca al cliente ni con correos completos).
+  if (!token) { console.error('[db-write] 401: falta header Authorization Bearer'); return null }
+  if (!secretKey) { console.error('[db-write] 401: CLERK_SECRET_KEY no definida en este entorno'); return null }
   try {
     const claims = await verifyToken(token, { secretKey })
     const user = await createClerkClient({ secretKey }).users.getUser(claims.sub)
     const ok = user.emailAddresses.some(
       e => e.verification?.status === 'verified' && e.emailAddress.toLowerCase().endsWith(ALLOWED_DOMAIN),
     )
+    if (!ok) {
+      console.error('[db-write] 401: sin correo verificado @nlace.com', user.emailAddresses.map(
+        e => `${e.emailAddress.split('@')[1]}:${e.verification?.status ?? 'sin-verificacion'}`,
+      ))
+    }
     return ok ? claims.sub : null
-  } catch {
+  } catch (e) {
+    console.error('[db-write] 401: fallo al verificar sesión con Clerk:', e instanceof Error ? e.message : e)
     return null
   }
 }
