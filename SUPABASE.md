@@ -34,16 +34,20 @@ fecha_vencimiento (DATE), cliente, creado_en
 ## RLS y variables de entorno
 
 - SELECT: `anon` y `authenticated` pueden leer
-- INSERT/UPDATE: requiere `service_role`, usada **solo en servidor** por `api/db-write.ts` (el navegador nunca la tiene)
+- INSERT/UPDATE: requiere la **secret key** (`sb_secret_…`), usada **solo en servidor** por `api/db-write.ts` (el navegador nunca la tiene)
 
 | Variable | Uso |
 |----------|-----|
 | `VITE_SUPABASE_URL` | URL del proyecto (tiene fallback hardcodeado) |
 | `VITE_SUPABASE_ANON_KEY` | Clave pública para lectura: publishable `sb_publishable_…` (fallback hardcodeado; ya no la anon JWT legacy) |
-| `SUPABASE_SERVICE_KEY` | service_role, **solo servidor** (env de Vercel, sin prefijo `VITE_`) |
+| `SUPABASE_SERVICE_KEY` | secret key `sb_secret_…`, **solo servidor** (env de Vercel, Production y Preview, Sensitive; sin prefijo `VITE_`) |
 | `CLERK_SECRET_KEY` | Secret Key de Clerk, solo servidor: `api/db-write.ts` valida la sesión y el dominio `@nlace.com` |
 
-> **Nunca** poner `service_role` en una variable `VITE_*`: Vite la publica en el bundle. Escritura desde el front = `src/lib/supabaseAdmin.ts` → `POST /api/db-write` (tablas ventas/costos/gastos/remuneraciones; update solo `ventas.estado/fecha_pago/monto_bruto`). Los skills locales (cobranza/reconciliar) leen la clave de `.env.local`.
+> **Nunca** poner `service_role` en una variable `VITE_*`: Vite la publica en el bundle. Escritura desde el front = `src/lib/supabaseAdmin.ts` → `POST /api/db-write` (tablas ventas/costos/gastos/remuneraciones; update solo `ventas.estado/fecha_pago/monto_bruto`). Los skills locales (cobranza/reconciliar) leen `SUPABASE_SECRET_KEY` de `.env.local` (una secret key propia, distinta de la de Vercel, para poder revocarlas por separado); las claves nuevas van solo en `apikey`, no en `Authorization: Bearer`.
+
+**Estado de claves (oct 2026):** claves legacy `anon`/`service_role` desactivadas y secreto JWT legacy **revocado** (JWT Signing Keys: ES256 activa). Una `service_role` vieja ya no funciona ni como `apikey` ni como `Bearer`. Vercel: `VITE_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` deben ser de la misma instancia por entorno (Preview: `pk_test`/`sk_test`; Production: `pk_live`/`sk_live`).
+
+**Riesgo conocido (anterior a este cambio):** `anon`/publishable puede hacer SELECT en ventas, costos, gastos, remuneraciones y la vista `registros_contables` sin iniciar sesión; el login de Clerk protege las pantallas, no las consultas directas a la API. Cerrarlo exige leer por servidor o RLS por usuario.
 
 ## Tabla de cobranza
 
@@ -57,7 +61,7 @@ empresa_id, rut_cliente, cliente, fecha_contacto (DATE), nivel_escalada (1/2/3),
 folios (TEXT[]), monto_total (NUMERIC), gmail_draft_id (TEXT), creado_en
 ```
 - SELECT: `anon` y `authenticated` pueden leer
-- INSERT: requiere `service_role` vía `VITE_SUPABASE_SERVICE_KEY`
+- INSERT: requiere la secret key (`SUPABASE_SECRET_KEY` en `.env.local`)
 - Skill que la usa: `.claude/commands/cobranza.md`
 
 ---

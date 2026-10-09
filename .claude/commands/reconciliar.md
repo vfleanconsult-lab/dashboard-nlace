@@ -96,7 +96,7 @@ Luego listar cada discrepancia con monto y acción sugerida.
 
 Según instrucciones del usuario:
 
-- **DELETE** filas erróneas: requiere `service_role` key (pedir al usuario si no está en `.env`)
+- **DELETE** filas erróneas: requiere la secret key `sb_secret_…` (pedir al usuario si no está en `.env.local` como `SUPABASE_SECRET_KEY`); va solo en el header `apikey`
 - **INSERT** filas faltantes: usar la key de servicio
 - **Reclasificar**: DELETE de tabla origen + INSERT en tabla destino
 - Si el catálogo de `ActualizarCostos.tsx` o `ActualizarGastos.tsx` necesita actualización, hacer el cambio, crear rama, PR y merge
@@ -119,7 +119,7 @@ ANON_KEY     = (en src/lib/supabase.ts)
 EMPRESA_ID   = 02832e85-f5d9-43d6-a911-0bdf3e3e1a4a
 ```
 
-La `service_role` key no está en el repo — pedirla al usuario cuando se necesite para DELETEs/INSERTs directos.
+La secret key no está en el repo — pedirla al usuario cuando se necesite para DELETEs/INSERTs directos. La `service_role` legacy fue revocada (oct 2026) y no sirve.
 
 ## Lecciones aprendidas (mayo 2026)
 

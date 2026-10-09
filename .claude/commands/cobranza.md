@@ -14,9 +14,9 @@ description: Agente de cobranza NLACE — consulta Supabase por facturas vencida
 ## Configuración y credenciales
 
 Leer del archivo `/Users/victor/Developer/dashboard-nlace/.env.local`:
-- `VITE_SUPABASE_SERVICE_KEY` — para INSERT en cobranza_historial
+- `SUPABASE_SECRET_KEY` — secret key (`sb_secret_…`) para INSERT en cobranza_historial
 
-Si no existe, pedir al usuario que lo agregue antes de continuar.
+Si no existe, pedir al usuario que lo agregue antes de continuar. La antigua `VITE_SUPABASE_SERVICE_KEY` (service_role legacy) está revocada y ya no funciona.
 
 Constantes fijas:
 ```
@@ -242,12 +242,11 @@ Guardar el `draft_id` retornado para el Paso 9.
 
 ## Paso 9 — Registrar en cobranza_historial
 
-Para cada cliente procesado (excluidos los EN VENTANA), insertar usando la service_role key:
+Para cada cliente procesado (excluidos los EN VENTANA), insertar usando la secret key (`SUPABASE_SECRET_KEY`). Las claves nuevas `sb_secret_…` van **solo** en el header `apikey`, nunca en `Authorization: Bearer`:
 
 ```bash
 curl -s -X POST "https://orjufhwfepojfiqejhfc.supabase.co/rest/v1/cobranza_historial" \
-  -H "apikey: {SUPABASE_SERVICE_KEY}" \
-  -H "Authorization: Bearer {SUPABASE_SERVICE_KEY}" \
+  -H "apikey: {SUPABASE_SECRET_KEY}" \
   -H "Content-Type: application/json" \
   -H "Prefer: return=minimal" \
   -d '{
