@@ -456,3 +456,16 @@ Antes de borrar, se comprobó con `git rev-list --count origin/main..<rama>` (0 
 - **Un redeploy no es un build nuevo del PR:** se redeployó `main` en vez de la rama; el hash del JS publicado revela si el build cambió.
 - **Retención de logs de Supabase: ~11 horas.** No se puede auditar abuso de semanas atrás. Si una clave se filtra, asumir compromiso total.
 - **Monitor por commit:** un monitor que mira el estado de un commit ya desplegado da falsos "listo" en redeploys del mismo SHA.
+
+## Sesión 13/10/2026 — Skills para agentes (carga de datos)
+
+**Qué se hizo:** los 4 algoritmos de Actualizar Datos (Costos, Gastos, Ingresos, Estado de Facturas) se convirtieron en 4 skills independientes para los agentes que se arman con Cristian en la consola de Claude. Carpeta: `~/Developer/Skills para agentes/` (fuera del repo a propósito: el catálogo de costos lleva RUT de personas del equipo). Contiene `nlace-cargar-costos`, `nlace-cargar-gastos`, `nlace-cargar-ingresos`, `nlace-estado-facturas` (cada una con `SKILL.md`, `references/` y `.zip` listo para subir) y un `LEEME.md` para Cristian.
+
+- **Fuente de verdad = el código, no la doc.** `MODULOS_CARGA.md` decía 24 proveedores de software; el código tiene 27. Se corrigió la doc. Los catálogos de las skills se extrajeron del `.tsx` con un script, no a mano.
+- **No hay restricción UNIQUE en las tablas:** el código maneja el error `23505`, pero nunca se dispara. La detección de duplicados (huella por módulo) es la única defensa; está marcada como obligatoria en cada skill.
+- **Un agente no puede escribir como el Dashboard:** `/api/db-write` exige sesión de Clerk `@nlace.com`. Cristian debe dar al agente una credencial propia con permisos mínimos (INSERT en 4 tablas; UPDATE solo `estado/fecha_pago/monto_bruto` en `ventas`), nunca la secret key general. Las skills no incluyen ninguna clave.
+- **Endurecimientos respecto a la UI** (solo en las skills): avisar ambigüedad cuando hay varias facturas idénticas en Estado de Facturas, y verificar folio+cliente+monto antes de cada UPDATE (lección del id cruzado).
+- **Pendiente:** probar las skills con una cartola real cuando Cristian tenga el acceso de escritura. No se probaron con un agente; la verificación fue lectura del código y validación de los JSON.
+- **Mantenimiento:** si cambian los catálogos en el Dashboard, regenerar los `catalogo.json` de las skills o el agente y el Dashboard clasificarán distinto.
+
+*Sesión del 13/10/2026 — Dashboard NLACE*
