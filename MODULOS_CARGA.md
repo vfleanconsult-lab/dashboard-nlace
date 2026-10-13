@@ -36,7 +36,7 @@ Al añadir un módulo, agregar color en `colorMap` e `iconColorMap` de `Actualiz
 
 ### Catálogos
 
-**`CATALOG_SOFTWARE`** (24 proveedores) — keywords en glosa (case insensitive, `includes`)
+**`CATALOG_SOFTWARE`** (27 proveedores: Typeform, Canva, Lovable, Klingai, Freepik, ElevenLabs, Google, Read Meeting, Midjourney, Hetzner, Metricool, OpenAI, Anthropic, Databox, HubSpot, Vercel, Figma, GoDaddy, Capso/Kapso, CapCut, Firecrawl, Cloudflare, Supabase, Magnific AI, Slack, ManyChat, Microsoft) — keywords en glosa (case insensitive, `includes`)
 → tabla `costos`, cuenta `4101-09`, clasificacion `Costo_Gto_Explot`
 
 **`CATALOG_EQUIPO`** (11 personas) — `id_norm` al inicio de la glosa (`startsWith`)
