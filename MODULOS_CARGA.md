@@ -161,6 +161,18 @@ Match parcial: fila original `estado = 'Pagada_parcial'`, `monto_bruto = abono`;
 
 ---
 
+## Abonos Biolumen (skill de agente, sin pantalla en el Dashboard)
+
+Skill `nlace-abonos-biolumen` en `~/Developer/Skills para agentes/` (fuera del repo). Biolumen paga en wires de USD 1.000 contra facturas de ~USD 1.300; en la cartola aparecen en CLP, netos de comisión, como "Depósito en efectivo" (la glosa no identifica al cliente), así que **el humano elige cuál abono es de Biolumen** entre los candidatos que propone el agente.
+
+- **Variante A (USD 1.000):** se aplica a la factura `Emitida` completa más antigua (no cuenta las líneas de saldo). UPDATE → `Pagada_parcial`, `monto_bruto = bruto`, `fecha_pago` = fecha del abono; INSERT de la línea de saldo `Emitida` por `original − bruto`.
+- **Variante B (~USD 300):** cierra la línea de saldo más antigua → `Pagada`.
+- **Diferencia:** `bruto` = CLP de los USD antes de comisión (lo informa el humano; sin él, `bruto = neto` y no hay gasto). `diferencia = bruto − neto` se inserta en `gastos` (`4201-10` GASTOS BANCARIOS, `Banco`, `Gasto_Adm`, `Pagada`, glosa `Diferencia por tipo de cambio`, mes = mes del abono).
+- **Por qué bruto y no neto en la venta:** el Cashflow suma ventas `Pagada*` y resta gastos `Pagada`; con ingreso bruto + gasto de la diferencia la caja da el neto de la cartola. Ingreso neto + gasto resta la diferencia dos veces.
+- Se identifica siempre por `id` (folios colisionan). Un folio con 2+ `Emitida` sin `Pagada_parcial` (hoy el folio 4) detiene el proceso hasta que el humano lo aclare.
+
+---
+
 ## IngresoManualPartidas
 
 Wizard 3 pasos — INSERT de una sola fila. No usa `useData()`, `useFilter()` ni `PageHeader`.

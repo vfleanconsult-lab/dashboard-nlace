@@ -469,3 +469,15 @@ Antes de borrar, se comprobó con `git rev-list --count origin/main..<rama>` (0 
 - **Mantenimiento:** si cambian los catálogos en el Dashboard, regenerar los `catalogo.json` de las skills o el agente y el Dashboard clasificarán distinto.
 
 *Sesión del 13/10/2026 — Dashboard NLACE*
+
+## Sesión 14/10/2026 — Skill de abonos Biolumen
+
+**Qué se hizo:** se documentó el proceso de abonos de Biolumen (wires de USD 1.000 contra facturas de ~USD 1.300) y se creó la skill `nlace-abonos-biolumen` para los agentes de Cristian (carpeta `~/Developer/Skills para agentes/`, con `.zip`). Detalle técnico en `MODULOS_CARGA.md`.
+
+- **No existía procedimiento escrito.** Se reconstruyó leyendo las filas reales de `ventas` (patrón `Pagada_parcial` + saldo `Emitida`) y se validó con el usuario antes de escribir la skill. Ninguna fila usa el estado `Anticipo`.
+- **Registrar el pago por el bruto, no por el neto:** el Cashflow resta los gastos `Pagada`, así que ingreso neto + gasto de la diferencia resta la comisión dos veces. Con ingreso bruto + gasto de la diferencia, la caja cuadra con la cartola (decisión aprobada por el usuario).
+- **La glosa de la cartola no identifica al cliente** ("Depósito en efectivo"): el agente propone candidatos y el humano elige. Regla general: cuando el dato no permite identificar, decide el humano.
+- **Regla de selección (opción A):** la factura completa `Emitida` más antigua, sin contar líneas de saldo; los saldos de ~USD 300 se cierran con una variante aparte.
+- **Pendiente:** la skill no se probó con un agente ni con una cartola real. El folio 4 de Biolumen tiene dos filas `Emitida` sin `Pagada_parcial` (¿split a medias o duplicado?); sin aclarar.
+
+*Sesión del 14/10/2026 — Dashboard NLACE*
